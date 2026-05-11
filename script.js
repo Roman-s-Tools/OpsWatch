@@ -30,6 +30,7 @@ let currentFilter = "All";
 let searchQuery = "";
 let mapFrame;
 let mapUpdateHandle;
+let userCoords = null;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -83,6 +84,7 @@ function bindEvents() {
 
 function initMap() {
   mapFrame = document.getElementById("mapFrame");
+  refreshUserCoords();
 }
 
 function toggleResourceFields() {
@@ -225,9 +227,10 @@ function renderMap(visible) {
   );
 
   const fallbackCoords = "29.7604,-95.3698";
+  const userCoordsText = userCoords ? `${userCoords.lat},${userCoords.lng}` : null;
   const coords = mapResources.length
     ? `${Number(mapResources[0].lat)},${Number(mapResources[0].lng)}`
-    : fallbackCoords;
+    : (userCoordsText || fallbackCoords);
   mapFrame.src = `https://maps.google.com/maps?q=${encodeURIComponent(coords)}&z=12&output=embed`;
 }
 
@@ -245,10 +248,31 @@ function useCurrentLocation() {
 
   navigator.geolocation.getCurrentPosition(
     position => {
-      els.lat.value = position.coords.latitude.toFixed(6);
-      els.lng.value = position.coords.longitude.toFixed(6);
+      const lat = position.coords.latitude.toFixed(6);
+      const lng = position.coords.longitude.toFixed(6);
+      els.lat.value = lat;
+      els.lng.value = lng;
+      userCoords = { lat, lng };
+      render();
     },
     () => alert("Could not get your current location.")
+  );
+}
+
+function refreshUserCoords() {
+  if (!navigator.geolocation) return;
+
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      userCoords = {
+        lat: position.coords.latitude.toFixed(6),
+        lng: position.coords.longitude.toFixed(6)
+      };
+      render();
+    },
+    () => {
+      userCoords = null;
+    }
   );
 }
 
