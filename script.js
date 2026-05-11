@@ -30,6 +30,8 @@ let currentFilter = "All";
 let searchQuery = "";
 let map;
 let markerLayer;
+let hasAutoFittedMap = false;
+let mapUpdateHandle;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -84,13 +86,20 @@ function bindEvents() {
 function initMap() {
   map = L.map("map", {
     zoomControl: true,
-    scrollWheelZoom: true
+    scrollWheelZoom: true,
+    preferCanvas: true
   }).setView([29.7604, -95.3698], 12);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(map);
+  });
+
+  tiles.on("tileerror", () => {
+    console.warn("Map tiles failed to load. Retrying from existing map state.");
+  });
+
+  tiles.addTo(map);
 
   markerLayer = L.layerGroup().addTo(map);
 }
@@ -144,8 +153,19 @@ function addResource(event) {
 function render() {
   const visible = getVisibleResources();
   renderList(visible);
-  renderMap(visible);
+  queueMapRender(visible);
   els.count.textContent = `${visible.length} visible of ${resources.length} total`;
+}
+
+function queueMapRender(visible) {
+  if (mapUpdateHandle) {
+    cancelAnimationFrame(mapUpdateHandle);
+  }
+
+  mapUpdateHandle = requestAnimationFrame(() => {
+    renderMap(visible);
+    mapUpdateHandle = undefined;
+  });
 }
 
 function getVisibleResources() {
@@ -255,10 +275,14 @@ function renderMap(visible) {
     marker.addTo(markerLayer);
   });
 
-  map.fitBounds(bounds, {
-    padding: [45, 45],
-    maxZoom: 15
-  });
+  const shouldAutoFit = !hasAutoFittedMap || bounds.length === 1;
+  if (shouldAutoFit) {
+    map.fitBounds(bounds, {
+      padding: [45, 45],
+      maxZoom: 15
+    });
+    hasAutoFittedMap = true;
+  }
 }
 
 function removeResource(id) {
