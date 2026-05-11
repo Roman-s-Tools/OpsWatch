@@ -9,14 +9,6 @@
     content="Track ground, sUAS, and air resources with map labels and aircraft tail-number lookup links."
   />
 
-  <!-- Leaflet map library -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIINfQkXb/nYt7v4p/RQJ1pI2i9j2zqfLrM="
-    crossorigin=""
-  />
-
   <link rel="stylesheet" href="style.css" />
 </head>
 
@@ -133,7 +125,15 @@
           </div>
         </div>
 
-        <div id="map"></div>
+        <div id="map">
+          <iframe
+            id="mapFrame"
+            title="Operations map"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            src="https://maps.google.com/maps?q=29.7604,-95.3698&z=12&output=embed">
+          </iframe>
+        </div>
       </section>
 
       <section class="panel">
@@ -178,11 +178,6 @@
     </article>
   </template>
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin="">
-  </script>
   <script src="script.js"></script>
 </body>
 </html>
