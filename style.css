@@ -243,7 +243,7 @@ textarea:focus {
 }
 
 #map {
-  min-height: 200px;
+  height: clamp(220px, 35vh, 340px);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
