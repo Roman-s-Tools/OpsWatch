@@ -10,174 +10,18 @@
   />
 
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 </head>
-
 <body>
-  <header class="site-header">
-    <div class="container header-grid">
-      <div>
-        <p class="eyebrow">Roman's Toolbox</p>
-        <h1>Crew Watch</h1>
-        <p class="lede">
-          Track ground teams, sUAS teams, and air resources from one lightweight operations board.
-          Ground and sUAS resources can be labeled on a map. Air resources can be opened in
-          FlightAware or Flightradar24 by registration number.
-        </p>
-      </div>
-
-      <div class="header-actions">
-        <button id="copySummaryBtn" class="button secondary" type="button">Copy Summary</button>
-        <button id="exportBtn" class="button secondary" type="button">Export JSON</button>
-
-        <label class="button secondary file-button">
-          Import JSON
-          <input id="importInput" type="file" accept="application/json" />
-        </label>
-      </div>
-    </div>
-  </header>
-
+  <header class="site-header"><div class="container header-grid"><div><p class="eyebrow">Roman's Toolbox</p><h1>Crew Watch</h1><p class="lede">Track ground teams, sUAS teams, and air resources from one lightweight operations board. Place map icons for all resource types and drag them to reflect movement in real time. Air resources can also be opened in FlightAware or Flightradar24 by registration number.</p></div><div class="header-actions"><button id="copySummaryBtn" class="button secondary" type="button">Copy Summary</button><button id="exportBtn" class="button secondary" type="button">Export JSON</button><label class="button secondary file-button">Import JSON<input id="importInput" type="file" accept="application/json" /></label></div></div></header>
   <main class="container main-grid">
-    <section class="panel">
-      <div class="panel-heading">
-        <h2>Add Resource</h2>
-        <p>Use coordinates for ground/sUAS resources or a tail number for aircraft.</p>
-      </div>
-
-      <form id="resourceForm" class="resource-form">
-        <label>
-          Resource Type
-          <select id="resourceType" required>
-            <option value="Ground">Ground</option>
-            <option value="sUAS">sUAS</option>
-            <option value="Air">Air</option>
-          </select>
-        </label>
-
-        <label>
-          Resource Name
-          <input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required />
-        </label>
-
-        <div id="mapFields">
-          <label>
-            Map Label
-            <input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" />
-          </label>
-
-          <div class="two-column">
-            <label>
-              Latitude
-              <input id="latitude" type="number" step="any" placeholder="29.7604" />
-            </label>
-
-            <label>
-              Longitude
-              <input id="longitude" type="number" step="any" placeholder="-95.3698" />
-            </label>
-          </div>
-
-          <button id="useLocationBtn" class="button secondary full-width" type="button">
-            Use My Current Location
-          </button>
-        </div>
-
-        <div id="airFields" class="hidden">
-          <label>
-            Tail Number / Registration
-            <input id="tailNumber" type="text" placeholder="N12345" />
-          </label>
-        </div>
-
-        <label>
-          Status
-          <select id="status">
-            <option>Available</option>
-            <option>Assigned</option>
-            <option>Enroute</option>
-            <option>Onscene</option>
-            <option>Offline</option>
-          </select>
-        </label>
-
-        <label>
-          Notes
-          <textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea>
-        </label>
-
-        <button class="button primary full-width" type="submit">Add Resource</button>
-      </form>
-    </section>
-
-    <section class="workspace">
-      <section class="panel">
-        <div class="toolbar">
-          <div>
-            <h2>Map Board</h2>
-            <p>Ground and sUAS resources appear here when coordinates are provided.</p>
-          </div>
-
-          <div class="filters" aria-label="Resource filters">
-            <button class="filter active" data-filter="All" type="button">All</button>
-            <button class="filter" data-filter="Ground" type="button">Ground</button>
-            <button class="filter" data-filter="sUAS" type="button">sUAS</button>
-            <button class="filter" data-filter="Air" type="button">Air</button>
-          </div>
-        </div>
-
-        <div id="map">
-          <iframe
-            id="mapFrame"
-            title="Operations map"
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-            src="https://maps.google.com/maps?q=29.7604,-95.3698&z=12&output=embed">
-          </iframe>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="toolbar">
-          <div>
-            <h2>Resource List</h2>
-            <p id="resourceCount">0 resources</p>
-          </div>
-
-          <label class="search-label">
-            <span class="sr-only">Search resources</span>
-            <input id="searchInput" type="search" placeholder="Search resources" />
-          </label>
-        </div>
-
-        <div id="resourceList" class="resource-list"></div>
-      </section>
-    </section>
+    <section class="panel"><div class="panel-heading"><h2>Add Resource</h2><p>Use coordinates for map icons (Ground, sUAS, and Air). Air resources also need a tail number.</p></div><form id="resourceForm" class="resource-form"><label>Resource Type<select id="resourceType" required><option value="Ground">Ground</option><option value="sUAS">sUAS</option><option value="Air">Air</option></select></label><label>Resource Name<input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required /></label><div id="mapFields"><label>Map Label<input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" /></label><div class="two-column"><label>Latitude<input id="latitude" type="number" step="any" placeholder="29.7604" required /></label><label>Longitude<input id="longitude" type="number" step="any" placeholder="-95.3698" required /></label></div><button id="useLocationBtn" class="button secondary full-width" type="button">Use My Current Location</button></div><div id="airFields" class="hidden"><label>Tail Number / Registration<input id="tailNumber" type="text" placeholder="N12345" /></label></div><label>Status<select id="status"><option>Available</option><option>Assigned</option><option>Enroute</option><option>Onscene</option><option>Offline</option></select></label><label>Notes<textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea></label><button class="button primary full-width" type="submit">Add Resource</button></form></section>
+    <section class="workspace"><section class="panel"><div class="toolbar"><div><h2>Map Board</h2><p>All resources appear here. Drag any icon to update its current location.</p></div><div class="filters" aria-label="Resource filters"><button class="filter active" data-filter="All" type="button">All</button><button class="filter" data-filter="Ground" type="button">Ground</button><button class="filter" data-filter="sUAS" type="button">sUAS</button><button class="filter" data-filter="Air" type="button">Air</button></div></div><div id="map"></div></section>
+      <section class="panel"><div class="toolbar"><div><h2>Resource List</h2><p id="resourceCount">0 resources</p></div><label class="search-label"><span class="sr-only">Search resources</span><input id="searchInput" type="search" placeholder="Search resources" /></label></div><div id="resourceList" class="resource-list"></div></section></section>
   </main>
-
-  <footer class="site-footer">
-    <div class="container">
-      <p>
-        Operational note: this tool saves data in your browser using local storage. Export JSON when you
-        need to preserve or transfer a board. Aircraft visibility depends on public tracking availability
-        and each provider's restrictions.
-      </p>
-      <p class="version">Version 1. Last updated May 11, 2026.</p>
-    </div>
-  </footer>
-
-  <template id="resourceCardTemplate">
-    <article class="resource-card">
-      <div class="resource-card-main">
-        <div class="badges"></div>
-        <h3></h3>
-        <p class="resource-notes"></p>
-        <p class="resource-meta"></p>
-      </div>
-
-      <div class="resource-actions"></div>
-    </article>
-  </template>
-
+  <footer class="site-footer"><div class="container"><p>Operational note: this tool saves data in your browser using local storage. Export JSON when you need to preserve or transfer a board. Aircraft visibility depends on public tracking availability and each provider's restrictions.</p><p class="version">Version 1. Last updated May 11, 2026.</p></div></footer>
+  <template id="resourceCardTemplate"><article class="resource-card"><div class="resource-card-main"><div class="badges"></div><h3></h3><p class="resource-notes"></p><p class="resource-meta"></p></div><div class="resource-actions"></div></article></template>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="script.js"></script>
 </body>
 </html>

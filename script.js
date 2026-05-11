@@ -28,8 +28,8 @@ const defaultResources = [
 let resources = loadResources();
 let currentFilter = "All";
 let searchQuery = "";
-let mapFrame;
-let mapUpdateHandle;
+let map;
+let markersLayer;
 let userCoords = null;
 
 const els = {
@@ -83,17 +83,17 @@ function bindEvents() {
 }
 
 function initMap() {
-  mapFrame = document.getElementById("mapFrame");
+  map = L.map("map").setView([29.7604, -95.3698], 12);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
   refreshUserCoords();
 }
 
 function toggleResourceFields() {
   const isAir = els.type.value === "Air";
-  els.mapFields.classList.toggle("hidden", isAir);
   els.airFields.classList.toggle("hidden", !isAir);
-
-  els.lat.required = !isAir;
-  els.lng.required = !isAir;
+  els.lat.required = true;
+  els.lng.required = true;
   els.tail.required = isAir;
 }
 
@@ -107,16 +107,16 @@ function addResource(event) {
     name: els.name.value.trim(),
     label: els.label.value.trim() || els.name.value.trim(),
     status: els.status.value,
-    lat: type === "Air" ? "" : Number(els.lat.value),
-    lng: type === "Air" ? "" : Number(els.lng.value),
+    lat: Number(els.lat.value),
+    lng: Number(els.lng.value),
     notes: els.notes.value.trim(),
     tail: type === "Air" ? normalizeTail(els.tail.value) : ""
   };
 
   if (!resource.name) return;
 
-  if (type !== "Air" && (!Number.isFinite(resource.lat) || !Number.isFinite(resource.lng))) {
-    alert("Ground and sUAS resources need valid latitude and longitude.");
+  if (!Number.isFinite(resource.lat) || !Number.isFinite(resource.lng)) {
+    alert("All resources need valid latitude and longitude to place a map icon.");
     return;
   }
 
@@ -141,14 +141,7 @@ function render() {
 }
 
 function queueMapRender(visible) {
-  if (mapUpdateHandle) {
-    cancelAnimationFrame(mapUpdateHandle);
-  }
-
-  mapUpdateHandle = requestAnimationFrame(() => {
-    renderMap(visible);
-    mapUpdateHandle = undefined;
-  });
+  renderMap(visible);
 }
 
 function getVisibleResources() {
@@ -220,18 +213,28 @@ function renderList(visible) {
 }
 
 function renderMap(visible) {
-  const mapResources = visible.filter(resource =>
-    resource.type !== "Air" &&
-    Number.isFinite(Number(resource.lat)) &&
-    Number.isFinite(Number(resource.lng))
-  );
+  markersLayer.clearLayers();
+  const mapResources = visible.filter(resource => Number.isFinite(Number(resource.lat)) && Number.isFinite(Number(resource.lng)));
+  if (!mapResources.length) {
+    if (userCoords) map.setView([Number(userCoords.lat), Number(userCoords.lng)], 12);
+    return;
+  }
 
-  const fallbackCoords = "29.7604,-95.3698";
-  const userCoordsText = userCoords ? `${userCoords.lat},${userCoords.lng}` : null;
-  const coords = mapResources.length
-    ? `${Number(mapResources[0].lat)},${Number(mapResources[0].lng)}`
-    : (userCoordsText || fallbackCoords);
-  mapFrame.src = `https://maps.google.com/maps?q=${encodeURIComponent(coords)}&z=12&output=embed`;
+  const bounds = [];
+  mapResources.forEach(resource => {
+    const marker = L.marker([Number(resource.lat), Number(resource.lng)], { draggable: true }).addTo(markersLayer);
+    marker.bindPopup(`<strong>${escapeHtml(resource.name)}</strong><br>${escapeHtml(resource.type)} · ${escapeHtml(resource.label || resource.name)}`);
+    marker.on("dragend", event => {
+      const point = event.target.getLatLng();
+      resource.lat = Number(point.lat.toFixed(6));
+      resource.lng = Number(point.lng.toFixed(6));
+      saveResources();
+      renderList(getVisibleResources());
+    });
+    bounds.push([Number(resource.lat), Number(resource.lng)]);
+  });
+
+  map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
 }
 
 function removeResource(id) {
