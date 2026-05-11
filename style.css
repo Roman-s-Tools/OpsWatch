@@ -250,30 +250,10 @@ textarea:focus {
   background: #e9eef5;
 }
 
-.map-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: #fff;
-  padding: 7px 10px;
-  color: var(--text);
-  font-size: 0.82rem;
-  font-weight: 900;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
-  white-space: nowrap;
-}
-
-.map-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--accent);
-}
-
-.map-dot.suas {
-  background: #7c3aed;
+#map iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .resource-list {

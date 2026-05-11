@@ -28,9 +28,7 @@ const defaultResources = [
 let resources = loadResources();
 let currentFilter = "All";
 let searchQuery = "";
-let map;
-let markerLayer;
-let hasAutoFittedMap = false;
+let mapFrame;
 let mapUpdateHandle;
 
 const els = {
@@ -84,24 +82,7 @@ function bindEvents() {
 }
 
 function initMap() {
-  map = L.map("map", {
-    zoomControl: true,
-    scrollWheelZoom: true,
-    preferCanvas: true
-  }).setView([29.7604, -95.3698], 12);
-
-  const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-  });
-
-  tiles.on("tileerror", () => {
-    console.warn("Map tiles failed to load. Retrying from existing map state.");
-  });
-
-  tiles.addTo(map);
-
-  markerLayer = L.layerGroup().addTo(map);
+  mapFrame = document.getElementById("mapFrame");
 }
 
 function toggleResourceFields() {
@@ -237,52 +218,17 @@ function renderList(visible) {
 }
 
 function renderMap(visible) {
-  markerLayer.clearLayers();
-
   const mapResources = visible.filter(resource =>
     resource.type !== "Air" &&
     Number.isFinite(Number(resource.lat)) &&
     Number.isFinite(Number(resource.lng))
   );
 
-  if (!mapResources.length) return;
-
-  const bounds = [];
-
-  mapResources.forEach(resource => {
-    const latLng = [Number(resource.lat), Number(resource.lng)];
-    bounds.push(latLng);
-
-    const icon = L.divIcon({
-      className: "",
-      html: `
-        <div class="map-label">
-          <span class="map-dot ${resource.type === "sUAS" ? "suas" : ""}"></span>
-          ${escapeHtml(resource.label || resource.name)}
-        </div>
-      `,
-      iconAnchor: [18, 36]
-    });
-
-    const marker = L.marker(latLng, { icon }).bindPopup(`
-      <strong>${escapeHtml(resource.name)}</strong><br>
-      Type: ${escapeHtml(resource.type)}<br>
-      Status: ${escapeHtml(resource.status)}<br>
-      Coordinates: ${escapeHtml(String(resource.lat))}, ${escapeHtml(String(resource.lng))}<br>
-      ${escapeHtml(resource.notes || "No notes entered.")}
-    `);
-
-    marker.addTo(markerLayer);
-  });
-
-  const shouldAutoFit = !hasAutoFittedMap || bounds.length === 1;
-  if (shouldAutoFit) {
-    map.fitBounds(bounds, {
-      padding: [45, 45],
-      maxZoom: 15
-    });
-    hasAutoFittedMap = true;
-  }
+  const fallbackCoords = "29.7604,-95.3698";
+  const coords = mapResources.length
+    ? `${Number(mapResources[0].lat)},${Number(mapResources[0].lng)}`
+    : fallbackCoords;
+  mapFrame.src = `https://maps.google.com/maps?q=${encodeURIComponent(coords)}&z=12&output=embed`;
 }
 
 function removeResource(id) {
