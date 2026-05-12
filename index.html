@@ -15,7 +15,7 @@
 <body>
   <header class="site-header"><div class="container header-grid"><div><p class="eyebrow">Roman's Toolbox</p><h1>Crew Watch</h1><p class="lede">Track ground teams, sUAS teams, and air resources from one lightweight operations board. Place map icons for all resource types and drag them to reflect movement in real time. Air resources can also be opened in FlightAware or Flightradar24 by registration number.</p></div><div class="header-actions"><button id="copySummaryBtn" class="button secondary" type="button">Copy Summary</button><button id="exportBtn" class="button secondary" type="button">Export JSON</button><label class="button secondary file-button">Import JSON<input id="importInput" type="file" accept="application/json" /></label></div></div></header>
   <main class="container tool-shell">
-    <section class="panel tool-switcher" aria-label="Tool switcher"><div><h2>Tool Mode</h2><p>Switch between Ops Watch and Crew Staffing from one workspace.</p></div><div class="tool-tabs" role="tablist"><button class="tool-tab active" data-tool="opswatch" type="button" role="tab" aria-selected="true">Ops Watch</button><button class="tool-tab" data-tool="crewstaffing" type="button" role="tab" aria-selected="false">Crew Staffing</button></div></section>
+    <section class="panel tool-switcher" aria-label="Tool switcher"><div><h2>Tool Mode</h2><p>Switch between Ops Watch, Crew Staffing, and Assignment Board from one workspace.</p></div><div class="tool-tabs" role="tablist"><button class="tool-tab active" data-tool="opswatch" type="button" role="tab" aria-selected="true">Ops Watch</button><button class="tool-tab" data-tool="crewstaffing" type="button" role="tab" aria-selected="false">Crew Staffing</button><button class="tool-tab" data-tool="assignmentboard" type="button" role="tab" aria-selected="false">Assignment Board</button></div></section>
 
     <section id="opswatchApp" class="main-grid tool-panel active" role="tabpanel">
     <section class="panel"><div class="panel-heading"><h2>Add Resource</h2><p>Use coordinates for map icons (Ground, sUAS, Air, and Vehicles). Air resources need a tail number, and vehicles need a vehicle number.</p></div><form id="resourceForm" class="resource-form"><label>Resource Type<select id="resourceType" required><option value="Ground">Ground</option><option value="sUAS">sUAS</option><option value="Air">Air</option><option value="Vehicle">Vehicle</option></select></label><label>Resource Name<input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required /></label><label>Crew<input id="resourceCrew" type="text" placeholder="Names or team assigned to this resource" /></label><div id="mapFields"><label>Map Label<input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" /></label><div class="two-column"><label>Latitude<input id="latitude" type="number" step="any" placeholder="29.7604" required /></label><label>Longitude<input id="longitude" type="number" step="any" placeholder="-95.3698" required /></label></div><button id="useLocationBtn" class="button secondary full-width" type="button">Use My Current Location</button></div><div id="airFields" class="hidden"><label>Tail Number / Registration<input id="tailNumber" type="text" placeholder="N12345" /></label></div><div id="vehicleFields" class="hidden"><label>Vehicle Number<input id="vehicleNumber" type="text" placeholder="Unit 42" /></label></div><label>Status<select id="status"><option>Available</option><option>Assigned</option><option>Enroute</option><option>Onscene</option><option>Offline</option></select></label><label>Notes<textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea></label><button class="button primary full-width" type="submit">Add Resource</button></form></section>
@@ -32,6 +32,29 @@
         <button id="crewClearBtn" class="button secondary" type="button">Clear Page</button>
       </div>
       <iframe id="crewStaffingFrame" title="Crew Staffing tool" src="./crew-staffing/index.html?embed=1"></iframe>
+    </section>
+
+    <section id="assignmentBoardApp" class="panel tool-panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <div>
+          <h2>Assignment Board</h2>
+          <p>Drag signed-in mission personnel from the left roster onto IMT positions.</p>
+        </div>
+        <div class="header-actions">
+          <button id="assignmentReloadBtn" class="button secondary" type="button">Reload from Crew Staffing</button>
+          <button id="assignmentClearBtn" class="button secondary" type="button">Clear Assignments</button>
+        </div>
+      </div>
+      <div class="assignment-layout">
+        <section class="assignment-roster">
+          <h3>Signed-In Personnel</h3>
+          <div id="assignmentRoster" class="assignment-roster-list"></div>
+        </section>
+        <section class="assignment-grid-wrap">
+          <h3>Incident Management Team Positions</h3>
+          <div id="assignmentGrid" class="assignment-grid"></div>
+        </section>
+      </div>
     </section>
   </main>
   <footer class="site-footer"><div class="container"><p>Operational note: this tool saves data in your browser using local storage. Export JSON when you need to preserve or transfer a board. Aircraft visibility depends on public tracking availability and each provider's restrictions.</p><p class="version">Version 1. Last updated May 11, 2026.</p></div></footer>

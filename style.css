@@ -499,3 +499,69 @@ textarea:focus {
   background: transparent;
   backdrop-filter: none;
 }
+
+.assignment-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+}
+
+.assignment-roster-list {
+  display: grid;
+  gap: 10px;
+  max-height: 560px;
+  overflow: auto;
+}
+
+.assignment-person {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 2px;
+}
+
+.assignment-person span,
+.assignment-slot-fill span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.assignment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.assignment-slot {
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+
+.assignment-slot-title {
+  font-weight: 700;
+  margin: 0;
+}
+
+.assignment-slot-fill {
+  min-height: 56px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  color: var(--muted);
+}
+
+.assignment-slot.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.assignment-remove {
+  min-height: 34px;
+}
