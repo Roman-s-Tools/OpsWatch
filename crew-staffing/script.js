@@ -2,6 +2,15 @@ const STORAGE_KEY = "romans-assignment-roster-v1";
 const INCIDENT_KEY = "romans-assignment-roster-incident-v1";
 const STATUSES = ["Assigned", "Available", "Enroute", "Onscene", "Released", "Unavailable"];
 const SECTIONS = ["Command Staff", "Operations Section", "Planning Section", "Logistics Section", "Finance/Admin Section", "Air Operations", "Ground Operations", "Mission Base", "Other"];
+const POSITIONS_BY_SECTION = {
+  "Command Staff": ["Incident Commander", "Deputy Incident Commander", "Safety Officer", "Public Information Officer", "Liaison Officer"],
+  "Planning Section": ["Planning Section Chief", "Planning Section Deputy Chief", "Resources Unit", "Situation Unit", "Documentation Unit", "Demobilization Unit", "Technical Specialist"],
+  "Operations Section": ["Operations Section Chief", "Operations Section Deputy Chief", "Staging Area Manager"],
+  "Logistics Section": ["Logistics Section Chief", "Logistics Section Deputy Chief", "Supply Unit", "Facilities Unit", "Ground Support Unit", "Communications Unit", "Medical Unit", "Food Unit"],
+  "Finance/Admin Section": ["Finance/Admin Section Chief", "Finance/Admin Section Deputy Chief", "Time Unit", "Procurement Unit", "Comp/Claims Unit", "Cost Unit"],
+  "Ground Operations": ["Ground Branch Director", "Ground Branch Deputy Director", "Ground Team Leader", "Ground Team Member", "sUAS Team", "UDF Team", "POD Team"],
+  "Air Operations": ["Air Operations Branch Director", "Air Operations Branch Deputy Director", "Flight Release Officer", "Senior Flight Release Officer", "Aircrew"]
+};
 
 let people = loadPeople();
 let incident = loadIncident();
@@ -20,6 +29,7 @@ const els = {
   capid: document.getElementById("capid"),
   section: document.getElementById("section"),
   position: document.getElementById("position"),
+  positionSelect: document.getElementById("positionSelect"),
   assignment: document.getElementById("assignment"),
   status: document.getElementById("status"),
   notes: document.getElementById("notes"),
@@ -51,6 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
   hydrateIncidentForm();
   bindEvents();
   bindParentMessages();
+  updatePositionField();
   render();
 });
 
@@ -65,6 +76,10 @@ function applyEmbedMode() {
 function bindEvents() {
   els.form.addEventListener("submit", addPerson);
   els.incidentForm.addEventListener("input", saveIncidentFromForm);
+  els.section.addEventListener("change", updatePositionField);
+  els.positionSelect.addEventListener("change", () => {
+    els.position.value = els.positionSelect.value;
+  });
   els.search.addEventListener("input", event => {
     searchQuery = event.target.value.trim().toLowerCase();
     render();
@@ -144,8 +159,37 @@ function addPerson(event) {
   savePeople();
   els.form.reset();
   els.section.value = "Command Staff";
+  updatePositionField();
   els.status.value = "Assigned";
   render();
+}
+
+function updatePositionField() {
+  const selectedSection = els.section.value;
+  const positions = POSITIONS_BY_SECTION[selectedSection] || [];
+  const allowFreeText = selectedSection === "Other" || !positions.length;
+
+  els.positionSelect.innerHTML = "";
+  if (allowFreeText) {
+    els.positionSelect.disabled = true;
+    els.positionSelect.hidden = true;
+    els.position.hidden = false;
+    els.position.placeholder = "Enter custom position / role";
+    return;
+  }
+
+  positions.forEach((position, index) => {
+    const option = document.createElement("option");
+    option.value = position;
+    option.textContent = position;
+    if (index === 0) option.selected = true;
+    els.positionSelect.appendChild(option);
+  });
+
+  els.positionSelect.disabled = false;
+  els.positionSelect.hidden = false;
+  els.position.hidden = true;
+  els.position.value = els.positionSelect.value;
 }
 
 function render() {
@@ -263,7 +307,19 @@ function editPerson(id) {
   els.name.value = person.name;
   els.capid.value = person.capid;
   els.section.value = person.section;
+  updatePositionField();
   els.position.value = person.position;
+  if (!els.positionSelect.disabled) {
+    if ([...els.positionSelect.options].some(option => option.value === person.position)) {
+      els.positionSelect.value = person.position;
+    } else {
+      const custom = document.createElement("option");
+      custom.value = person.position;
+      custom.textContent = `${person.position} (Imported)`;
+      els.positionSelect.appendChild(custom);
+      els.positionSelect.value = person.position;
+    }
+  }
   els.assignment.value = person.assignment;
   els.status.value = person.status;
   els.notes.value = person.notes;
