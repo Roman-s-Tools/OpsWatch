@@ -19,6 +19,7 @@ const defaultResources = [
     lat: 29.7604,
     lng: -95.3698,
     notes: "Example ground resource",
+    crew: "Alpha Crew",
     tail: "",
     vehicleNumber: ""
   },
@@ -31,6 +32,7 @@ const defaultResources = [
     lat: 29.752,
     lng: -95.352,
     notes: "Example sUAS resource",
+    crew: "UAS Team 1",
     tail: "",
     vehicleNumber: ""
   }
@@ -55,6 +57,7 @@ const els = {
   form: document.getElementById("resourceForm"),
   type: document.getElementById("resourceType"),
   name: document.getElementById("resourceName"),
+  crew: document.getElementById("resourceCrew"),
   label: document.getElementById("resourceLabel"),
   lat: document.getElementById("latitude"),
   lng: document.getElementById("longitude"),
@@ -144,6 +147,7 @@ function addResource(event) {
     lat: Number(els.lat.value),
     lng: Number(els.lng.value),
     notes: els.notes.value.trim(),
+    crew: els.crew.value.trim(),
     tail: type === "Air" ? normalizeTail(els.tail.value) : "",
     vehicleNumber: type === "Vehicle" ? els.vehicleNumber.value.trim() : ""
   };
@@ -193,6 +197,7 @@ function getVisibleResources() {
       resource.label,
       resource.status,
       resource.notes,
+      resource.crew,
       resource.tail,
       resource.vehicleNumber,
       resource.lat,
@@ -227,12 +232,13 @@ function renderList(visible) {
     card.querySelector(".resource-notes").textContent = resource.notes || "No notes entered.";
 
     const meta = card.querySelector(".resource-meta");
+    const crewText = resource.crew || "No crew listed";
     if (resource.type === "Air") {
-      meta.textContent = `Tail / Registration: ${resource.tail}`;
+      meta.textContent = `Crew: ${crewText} · Tail / Registration: ${resource.tail}`;
     } else if (resource.type === "Vehicle") {
-      meta.textContent = `Vehicle Number: ${resource.vehicleNumber || "Not provided"} · ${resource.lat}, ${resource.lng}`;
+      meta.textContent = `Crew: ${crewText} · Vehicle Number: ${resource.vehicleNumber || "Not provided"} · ${resource.lat}, ${resource.lng}`;
     } else {
-      meta.textContent = `${resource.label} · ${resource.lat}, ${resource.lng}`;
+      meta.textContent = `Crew: ${crewText} · ${resource.label} · ${resource.lat}, ${resource.lng}`;
     }
 
     const actions = card.querySelector(".resource-actions");
@@ -496,6 +502,7 @@ function importJson(event) {
         lat: resource.lat ?? "",
         lng: resource.lng ?? "",
         notes: resource.notes || "",
+        crew: resource.crew || "",
         tail: resource.tail || ""
       }));
 
@@ -514,10 +521,10 @@ function importJson(event) {
 function copySummary() {
   const summary = resources.map(resource => {
     if (resource.type === "Air") {
-      return `${resource.type}: ${resource.name} (${resource.tail}) - ${resource.status} - ${resource.notes || "No notes"}`;
+      return `${resource.type}: ${resource.name} (${resource.tail}) - Crew: ${resource.crew || "No crew"} - ${resource.status} - ${resource.notes || "No notes"}`;
     }
 
-    return `${resource.type}: ${resource.name} [${resource.label}] - ${resource.status} - ${resource.lat}, ${resource.lng} - ${resource.notes || "No notes"}`;
+    return `${resource.type}: ${resource.name} [${resource.label}] - Crew: ${resource.crew || "No crew"} - ${resource.status} - ${resource.lat}, ${resource.lng} - ${resource.notes || "No notes"}`;
   }).join("\n");
 
   navigator.clipboard.writeText(summary).then(
@@ -687,6 +694,7 @@ function escapeHtml(value) {
 function normalizeResource(resource) {
   return {
     ...resource,
+    crew: resource.crew || "",
     tail: resource.tail || "",
     vehicleNumber: resource.vehicleNumber || ""
   };
