@@ -78,6 +78,7 @@ const els = {
   exportBtn: document.getElementById("exportBtn"),
   importInput: document.getElementById("importInput"),
   showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
+  seedDemoDataBtn: document.getElementById("seedDemoDataBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
   drawRadiusBtn: document.getElementById("drawRadiusBtn"),
   clearRadiiBtn: document.getElementById("clearRadiiBtn"),
@@ -208,6 +209,7 @@ function bindEvents() {
   els.exportBtn.addEventListener("click", exportJson);
   els.importInput.addEventListener("change", importJson);
   els.showDisclaimerBtn?.addEventListener("click", showWmirsDisclaimer);
+  els.seedDemoDataBtn?.addEventListener("click", seedDemoData);
   els.copySummaryBtn.addEventListener("click", copySummary);
   els.drawRadiusBtn.addEventListener("click", toggleRadiusMode);
   els.clearRadiiBtn.addEventListener("click", clearRadii);
@@ -217,6 +219,61 @@ function bindEvents() {
 
 function showWmirsDisclaimer() {
   els.wmirsDisclaimerModal?.classList.remove("hidden");
+}
+
+
+function seedDemoData() {
+  const confirmed = window.confirm("Disclaimer: placeholder example resources, incident/mission info, and people assignments will be added for review only. Continue?");
+  if (!confirmed) return;
+
+  resources = [
+    ...defaultResources.map(normalizeResource),
+    { id: crypto.randomUUID(), type: "Air", name: "CAP Cessna 182", label: "AIR-1", status: "Enroute", lat: 29.742, lng: -95.355, notes: "Placeholder air resource for workflow review", crew: "Aircrew 3", tail: "N987CP", vehicleNumber: "" },
+    { id: crypto.randomUUID(), type: "Vehicle", name: "Operations SUV", label: "V-12", status: "Assigned", lat: 29.758, lng: -95.371, notes: "Placeholder mission base support", crew: "Logistics", tail: "", vehicleNumber: "Unit 12" },
+    { id: crypto.randomUUID(), type: "Incident Command Post", name: "Mission Base ICP", label: "ICP", status: "Onscene", lat: 29.7634, lng: -95.3661, notes: "Placeholder command post", crew: "Command Staff", tail: "", vehicleNumber: "" },
+    { id: crypto.randomUUID(), type: "Staging Area", name: "Staging Lot Alpha", label: "STAGE-A", status: "Available", lat: 29.7489, lng: -95.3441, notes: "Placeholder staging area", crew: "Ground Support", tail: "", vehicleNumber: "" }
+  ];
+
+  const demoPeople = [
+    { id: crypto.randomUUID(), name: "Jordan Lee", capid: "445001", section: "Command Staff", position: "Incident Commander", assignment: "Command", status: "Assigned", notes: "Placeholder" },
+    { id: crypto.randomUUID(), name: "Alex Rivera", capid: "445002", section: "Command Staff", position: "Safety Officer", assignment: "Command", status: "Assigned", notes: "Placeholder" },
+    { id: crypto.randomUUID(), name: "Taylor Brooks", capid: "445003", section: "Operations Section", position: "Operations Section Chief", assignment: "Ops", status: "Assigned", notes: "Placeholder" },
+    { id: crypto.randomUUID(), name: "Morgan Patel", capid: "445004", section: "Air Operations", position: "Air Operations Branch Director", assignment: "Air Branch", status: "Assigned", notes: "Placeholder" },
+    { id: crypto.randomUUID(), name: "Casey Nguyen", capid: "445005", section: "Ground Operations", position: "Ground Branch Director", assignment: "Ground Branch", status: "Assigned", notes: "Placeholder" },
+    { id: crypto.randomUUID(), name: "Riley Kim", capid: "445006", section: "Planning Section", position: "Planning Section Chief", assignment: "Planning", status: "Assigned", notes: "Placeholder" },
+    { id: crypto.randomUUID(), name: "Avery Chen", capid: "445007", section: "Logistics Section", position: "Communications Unit", assignment: "Comms", status: "Assigned", notes: "Placeholder" }
+  ];
+
+  const demoIncident = {
+    incidentName: "Training Exercise - Example Data",
+    missionNumber: "26-T-1001",
+    operationalPeriod: "May 12, 2026 0800-1800",
+    preparedBy: "Ops Watch Demo",
+    preparedAt: new Date().toLocaleString()
+  };
+
+  localStorage.setItem("romans-assignment-roster-v1", JSON.stringify(demoPeople));
+  localStorage.setItem("romans-assignment-roster-incident-v1", JSON.stringify(demoIncident));
+
+  assignmentPeople = demoPeople.map(person => ({ id: String(person.id), name: String(person.name), capid: String(person.capid) }));
+  assignmentSlots = {};
+  const byPosition = new Map(assignmentPeople.map(person => [person.name, person.id]));
+  assignmentSlots["Incident Commander"] = byPosition.get("Jordan Lee") || "";
+  assignmentSlots["Safety Officer"] = byPosition.get("Alex Rivera") || "";
+  assignmentSlots["Operations Section Chief"] = byPosition.get("Taylor Brooks") || "";
+  assignmentSlots["Air Operations Branch Director"] = byPosition.get("Morgan Patel") || "";
+  assignmentSlots["Ground Branch Director"] = byPosition.get("Casey Nguyen") || "";
+  assignmentSlots["Planning Section Chief"] = byPosition.get("Riley Kim") || "";
+  assignmentSlots["Communications Unit Leader"] = byPosition.get("Avery Chen") || "";
+
+  saveResources();
+  saveAssignmentBoard();
+  render();
+  renderAssignmentBoard();
+
+  sendCrewStaffingMessage({ type: "crewstaffing:import", text: JSON.stringify({ incident: demoIncident, people: demoPeople }) });
+
+  alert("Placeholder demo content has been added for review. Replace or clear this data before operational use.");
 }
 
 function initMap() {
