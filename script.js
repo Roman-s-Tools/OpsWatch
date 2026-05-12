@@ -502,14 +502,17 @@ function renderMap(visible) {
 function createColorMarker(type) {
   const color = TYPE_COLORS[type] || "#334155";
   const isAirResource = type === "Air";
+  const isVehicleResource = type === "Vehicle";
   const markerHtml = isAirResource
-    ? `<span style="display:grid;place-items:center;width:18px;height:18px;color:${color};font-size:16px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">✈</span>`
-    : `<span style="display:block;width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`;
+    ? `<span style="display:grid;place-items:center;width:24px;height:24px;color:${color};font-size:22px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">✈</span>`
+    : isVehicleResource
+      ? `<span style="display:grid;place-items:center;width:22px;height:22px;color:${color};font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">🚗</span>`
+      : `<span style="display:block;width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`;
   return L.divIcon({
     className: "resource-pin-wrapper",
     html: markerHtml,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    iconSize: isAirResource ? [24, 24] : isVehicleResource ? [22, 22] : [18, 18],
+    iconAnchor: isAirResource ? [12, 12] : isVehicleResource ? [11, 11] : [9, 9],
     popupAnchor: [0, -10]
   });
 }
@@ -998,10 +1001,15 @@ function openDashboardWindow() {
       const createResourceMarkerIcon = type => {
         const color = TYPE_COLORS[type] || "#334155";
         const isAirResource = type === "Air";
+        const isVehicleResource = type === "Vehicle";
         const markerHtml = isAirResource
-          ? "<span style='display:grid;place-items:center;width:18px;height:18px;color:" + color + ";font-size:16px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>✈</span>"
-          : "<span style='display:block;width:14px;height:14px;border-radius:999px;background:" + color + ";border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);'></span>";
-        return L.divIcon({ className: "", html: markerHtml, iconSize:[18,18], iconAnchor:[9,9] });
+          ? "<span style='display:grid;place-items:center;width:24px;height:24px;color:" + color + ";font-size:22px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>✈</span>"
+          : isVehicleResource
+            ? "<span style='display:grid;place-items:center;width:22px;height:22px;color:" + color + ";font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>🚗</span>"
+            : "<span style='display:block;width:14px;height:14px;border-radius:999px;background:" + color + ";border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);'></span>";
+        const iconSize = isAirResource ? [24, 24] : isVehicleResource ? [22, 22] : [18, 18];
+        const iconAnchor = isAirResource ? [12, 12] : isVehicleResource ? [11, 11] : [9, 9];
+        return L.divIcon({ className: "", html: markerHtml, iconSize, iconAnchor });
       };
 
       resources.forEach(resource => {
