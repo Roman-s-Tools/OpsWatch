@@ -10,7 +10,8 @@ const defaultResources = [
     lat: 29.7604,
     lng: -95.3698,
     notes: "Example ground resource",
-    tail: ""
+    tail: "",
+    vehicleNumber: ""
   },
   {
     id: crypto.randomUUID(),
@@ -21,11 +22,12 @@ const defaultResources = [
     lat: 29.752,
     lng: -95.352,
     notes: "Example sUAS resource",
-    tail: ""
+    tail: "",
+    vehicleNumber: ""
   }
 ];
 
-let resources = loadResources();
+let resources = loadResources().map(normalizeResource);
 let currentFilter = "All";
 let searchQuery = "";
 let map;
@@ -41,9 +43,11 @@ const els = {
   lng: document.getElementById("longitude"),
   tail: document.getElementById("tailNumber"),
   status: document.getElementById("status"),
+  vehicleNumber: document.getElementById("vehicleNumber"),
   notes: document.getElementById("notes"),
   mapFields: document.getElementById("mapFields"),
   airFields: document.getElementById("airFields"),
+  vehicleFields: document.getElementById("vehicleFields"),
   useLocationBtn: document.getElementById("useLocationBtn"),
   list: document.getElementById("resourceList"),
   count: document.getElementById("resourceCount"),
@@ -91,10 +95,13 @@ function initMap() {
 
 function toggleResourceFields() {
   const isAir = els.type.value === "Air";
+  const isVehicle = els.type.value === "Vehicle";
   els.airFields.classList.toggle("hidden", !isAir);
+  els.vehicleFields.classList.toggle("hidden", !isVehicle);
   els.lat.required = true;
   els.lng.required = true;
   els.tail.required = isAir;
+  els.vehicleNumber.required = isVehicle;
 }
 
 function addResource(event) {
@@ -110,7 +117,8 @@ function addResource(event) {
     lat: Number(els.lat.value),
     lng: Number(els.lng.value),
     notes: els.notes.value.trim(),
-    tail: type === "Air" ? normalizeTail(els.tail.value) : ""
+    tail: type === "Air" ? normalizeTail(els.tail.value) : "",
+    vehicleNumber: type === "Vehicle" ? els.vehicleNumber.value.trim() : ""
   };
 
   if (!resource.name) return;
@@ -122,6 +130,11 @@ function addResource(event) {
 
   if (type === "Air" && !resource.tail) {
     alert("Air resources need a tail number or registration.");
+    return;
+  }
+
+  if (type === "Vehicle" && !resource.vehicleNumber) {
+    alert("Vehicle resources need a vehicle number.");
     return;
   }
 
@@ -154,6 +167,7 @@ function getVisibleResources() {
       resource.status,
       resource.notes,
       resource.tail,
+      resource.vehicleNumber,
       resource.lat,
       resource.lng
     ].join(" ").toLowerCase();
@@ -188,6 +202,8 @@ function renderList(visible) {
     const meta = card.querySelector(".resource-meta");
     if (resource.type === "Air") {
       meta.textContent = `Tail / Registration: ${resource.tail}`;
+    } else if (resource.type === "Vehicle") {
+      meta.textContent = `Vehicle Number: ${resource.vehicleNumber || "Not provided"} · ${resource.lat}, ${resource.lng}`;
     } else {
       meta.textContent = `${resource.label} · ${resource.lat}, ${resource.lng}`;
     }
@@ -398,4 +414,13 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+
+function normalizeResource(resource) {
+  return {
+    ...resource,
+    tail: resource.tail || "",
+    vehicleNumber: resource.vehicleNumber || ""
+  };
 }
