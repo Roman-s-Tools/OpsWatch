@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Staff Watch | Roman's Toolbox</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-grid">
+      <div>
+        <p class="eyebrow">Roman's Toolbox</p>
+        <h1>Staff Watch</h1>
+        <p class="lede">Log personnel by name, CAPID, role, and assignment. Build an ICS 203-style organization/loadout record that can be copied, printed, exported, and restored later.</p>
+      </div>
+      <div class="header-actions">
+        <button class="button primary" id="copySummaryBtn" type="button">Copy Summary</button>
+        <button class="button secondary" id="printBtn" type="button">Print / PDF</button>
+        <button class="button secondary" id="exportBtn" type="button">Export JSON</button>
+        <label class="button secondary file-button">Import JSON<input id="importInput" type="file" accept="application/json" /></label>
+        <button class="button secondary" id="clearPageBtn" type="button">Clear Page</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-grid">
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Incident / Mission Info</h2>
+        <p>These fields appear at the top of the generated roster.</p>
+      </div>
+      <form id="incidentForm" class="resource-form">
+        <label>Incident / Mission Name<input id="incidentName" autocomplete="off" placeholder="Mission Base Operations" /></label>
+        <div class="two-column">
+          <label>Mission Number<input id="missionNumber" autocomplete="off" placeholder="25-M-0000" /></label>
+          <label>Operational Period<input id="operationalPeriod" autocomplete="off" placeholder="11 May 2026, 0800-1800" /></label>
+        </div>
+        <div class="two-column">
+          <label>Prepared By<input id="preparedBy" autocomplete="off" /></label>
+          <label>Date / Time Prepared<input id="preparedAt" autocomplete="off" /></label>
+        </div>
+      </form>
+    </section>
+
+    <section class="workspace">
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Add Person</h2>
+          <p>Create records by name, CAPID, assignment, and ICS-style position.</p>
+        </div>
+        <form id="personForm" class="resource-form">
+          <div class="two-column">
+            <label>Name<input id="personName" required autocomplete="off" placeholder="Jane Smith" /></label>
+            <label>CAPID<input id="capid" required inputmode="numeric" autocomplete="off" placeholder="123456" /></label>
+          </div>
+          <div class="two-column">
+            <label>ICS Section
+              <select id="section">
+                <option>Command Staff</option>
+                <option>Operations Section</option>
+                <option>Planning Section</option>
+                <option>Logistics Section</option>
+                <option>Finance/Admin Section</option>
+                <option>Air Operations</option>
+                <option>Ground Operations</option>
+                <option>Mission Base</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label>Position / Role<input id="position" required autocomplete="off" placeholder="Ground Branch Director" /></label>
+          </div>
+          <div class="two-column">
+            <label>Assignment / Team<input id="assignment" required autocomplete="off" placeholder="Ground Team 1" /></label>
+            <label>Status
+              <select id="status">
+                <option>Assigned</option>
+                <option>Available</option>
+                <option>Enroute</option>
+                <option>Onscene</option>
+                <option>Released</option>
+                <option>Unavailable</option>
+              </select>
+            </label>
+          </div>
+          <label>Notes<textarea id="notes" placeholder="Phone, qualifications, vehicle, radio call sign, special equipment, etc."></textarea></label>
+          <button class="button primary full-width" type="submit">Add Person</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <div>
+            <h2>Organization / Loadout</h2>
+            <p><span id="personCount">0 people</span></p>
+          </div>
+          <label class="search-label"><span class="sr-only">Search people</span><input id="searchInput" type="search" placeholder="Search name, CAPID, assignment, role, notes" /></label>
+        </div>
+        <div class="filters" aria-label="Roster filters">
+          <button class="filter active" type="button" data-filter="All">All</button>
+          <button class="filter" type="button" data-filter="Command Staff">Command</button>
+          <button class="filter" type="button" data-filter="Operations Section">Operations</button>
+          <button class="filter" type="button" data-filter="Planning Section">Planning</button>
+          <button class="filter" type="button" data-filter="Logistics Section">Logistics</button>
+          <button class="filter" type="button" data-filter="Finance/Admin Section">Finance/Admin</button>
+        </div>
+        <div id="rosterList" class="resource-list"></div>
+      </section>
+
+      <section class="panel printable-panel" id="ics203Panel">
+        <div class="ics-header">
+          <div>
+            <p class="eyebrow">ICS 203-style</p>
+            <h2>Organization Assignment List</h2>
+          </div>
+          <p class="form-number">ICS 203</p>
+        </div>
+        <div class="ics-meta" id="icsMeta"></div>
+        <section class="chain-panel" aria-label="Operational chain of command">
+          <h3>Operational Chain of Command (ICS 207-style)</h3>
+          <div id="chainOfCommand" class="chain-grid"></div>
+        </section>
+        <div id="icsSections" class="ics-sections"></div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Operational note: this tool saves data in your browser using local storage. Export JSON when you need to preserve or transfer a roster.</p>
+      <p class="version">Version 1. Last updated May 11, 2026.</p>
+    </div>
+  </footer>
+
+  <template id="personCardTemplate">
+    <article class="resource-card">
+      <div>
+        <div class="badges"></div>
+        <h3></h3>
+        <p class="resource-notes"></p>
+        <p class="resource-meta"></p>
+      </div>
+      <div class="resource-actions"></div>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
