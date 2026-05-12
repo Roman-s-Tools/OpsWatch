@@ -458,13 +458,6 @@ textarea:focus {
 }
 
 
-@media (min-width: 1200px) {
-  .header-grid {
-    grid-template-columns: 1fr auto;
-    align-items: end;
-  }
-}
-
 @media (min-width: 980px) {
   .main-grid {
     grid-template-columns: 370px 1fr;
