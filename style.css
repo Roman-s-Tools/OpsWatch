@@ -499,3 +499,49 @@ textarea:focus {
   background: transparent;
   backdrop-filter: none;
 }
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .tool-switcher,
+  #crewstaffingApp,
+  #resourceForm,
+  .map-actions,
+  .search-label,
+  .resource-actions,
+  .site-footer,
+  .header-actions,
+  .filter {
+    display: none !important;
+  }
+
+  .container {
+    width: 100%;
+    margin: 0;
+  }
+
+  .panel,
+  .resource-card {
+    box-shadow: none;
+    border-color: #cbd5e1;
+    break-inside: avoid;
+  }
+
+  #opswatchApp {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  #map {
+    height: 62vh;
+    min-height: 480px;
+    border-radius: 12px;
+  }
+
+  .workspace {
+    gap: 12px;
+  }
+}

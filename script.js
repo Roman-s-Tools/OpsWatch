@@ -79,6 +79,7 @@ const els = {
   clearRadiiBtn: document.getElementById("clearRadiiBtn"),
   kmlInput: document.getElementById("kmlInput"),
   clearKmlBtn: document.getElementById("clearKmlBtn"),
+  printOpswatchBtn: document.getElementById("printOpswatchBtn"),
   toolTabs: Array.from(document.querySelectorAll(".tool-tab")),
   opswatchPanel: document.getElementById("opswatchApp"),
   crewStaffingPanel: document.getElementById("crewstaffingApp"),
@@ -172,6 +173,35 @@ function bindEvents() {
   els.clearRadiiBtn.addEventListener("click", clearRadii);
   els.kmlInput.addEventListener("change", importKml);
   els.clearKmlBtn.addEventListener("click", clearKml);
+  els.printOpswatchBtn?.addEventListener("click", printOpswatchPdf);
+}
+
+function printOpswatchPdf() {
+  if (!map) {
+    window.print();
+    return;
+  }
+
+  const previousView = {
+    center: map.getCenter(),
+    zoom: map.getZoom()
+  };
+
+  const markerBounds = markersLayer?.getBounds?.();
+  const hasMarkerBounds = markerBounds && markerBounds.isValid();
+
+  if (hasMarkerBounds) {
+    map.fitBounds(markerBounds.pad(0.2));
+  } else {
+    map.invalidateSize();
+  }
+
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      map.setView(previousView.center, previousView.zoom);
+    }, 100);
+  }, hasMarkerBounds ? 450 : 150);
 }
 
 function initMap() {
