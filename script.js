@@ -81,15 +81,44 @@ const els = {
   clearKmlBtn: document.getElementById("clearKmlBtn"),
   toolTabs: Array.from(document.querySelectorAll(".tool-tab")),
   opswatchPanel: document.getElementById("opswatchApp"),
-  crewStaffingPanel: document.getElementById("crewstaffingApp")
+  crewStaffingPanel: document.getElementById("crewstaffingApp"),
+  crewStaffingFrame: document.getElementById("crewStaffingFrame"),
+  crewPrintBtn: document.getElementById("crewPrintBtn"),
+  crewExportBtn: document.getElementById("crewExportBtn"),
+  crewImportInput: document.getElementById("crewImportInput"),
+  crewClearBtn: document.getElementById("crewClearBtn")
 };
 
 document.addEventListener("DOMContentLoaded", () => {
   initMap();
   bindEvents();
   bindToolTabs();
+  bindCrewStaffingControls();
   render();
 });
+
+function bindCrewStaffingControls() {
+  if (!els.crewStaffingFrame) return;
+  els.crewPrintBtn?.addEventListener("click", () => sendCrewStaffingMessage({ type: "crewstaffing:print" }));
+  els.crewExportBtn?.addEventListener("click", () => sendCrewStaffingMessage({ type: "crewstaffing:export" }));
+  els.crewClearBtn?.addEventListener("click", () => sendCrewStaffingMessage({ type: "crewstaffing:clear" }));
+  els.crewImportInput?.addEventListener("change", event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      sendCrewStaffingMessage({ type: "crewstaffing:import", text: String(reader.result || "") });
+      event.target.value = "";
+    };
+    reader.readAsText(file);
+  });
+}
+
+function sendCrewStaffingMessage(message) {
+  const frameWindow = els.crewStaffingFrame?.contentWindow;
+  if (!frameWindow) return;
+  frameWindow.postMessage(message, window.location.origin);
+}
 
 
 function bindToolTabs() {
