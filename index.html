@@ -26,6 +26,12 @@
     <section id="crewstaffingApp" class="panel tool-panel" role="tabpanel" hidden>
       <h2>Crew Staffing</h2>
       <p class="tool-panel-lede">The Crew Staffing tool is loaded from <code>./crew-staffing/index.html</code>. Drop that repository into this folder path to activate it.</p>
+      <div class="header-actions" aria-label="Crew Staffing actions">
+        <button id="crewPrintBtn" class="button secondary" type="button">Print / PDF</button>
+        <button id="crewExportBtn" class="button secondary" type="button">Export JSON</button>
+        <label class="button secondary file-button">Import JSON<input id="crewImportInput" type="file" accept="application/json" /></label>
+        <button id="crewClearBtn" class="button secondary" type="button">Clear Page</button>
+      </div>
       <iframe id="crewStaffingFrame" title="Crew Staffing tool" src="./crew-staffing/index.html?embed=1"></iframe>
     </section>
   </main>

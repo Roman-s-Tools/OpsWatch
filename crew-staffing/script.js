@@ -50,6 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
   applyEmbedMode();
   hydrateIncidentForm();
   bindEvents();
+  bindParentMessages();
   render();
 });
 
@@ -81,6 +82,28 @@ function bindEvents() {
   els.exportBtn.addEventListener("click", exportJson);
   els.importInput.addEventListener("change", importJson);
   els.clearPageBtn.addEventListener("click", clearEntirePage);
+}
+
+function bindParentMessages() {
+  window.addEventListener("message", event => {
+    if (event.origin !== window.location.origin || !event.data || typeof event.data !== "object") return;
+    const { type, text } = event.data;
+    if (type === "crewstaffing:print") {
+      window.print();
+      return;
+    }
+    if (type === "crewstaffing:export") {
+      exportJson();
+      return;
+    }
+    if (type === "crewstaffing:clear") {
+      clearEntirePage();
+      return;
+    }
+    if (type === "crewstaffing:import" && typeof text === "string") {
+      importJsonText(text);
+    }
+  });
 }
 
 function hydrateIncidentForm() {
@@ -320,28 +343,36 @@ function exportJson() {
   URL.revokeObjectURL(link.href);
 }
 
+function importJsonText(text) {
+  try {
+    const imported = JSON.parse(text);
+    const importedPeople = Array.isArray(imported) ? imported : imported.people;
+    if (!Array.isArray(importedPeople)) throw new Error("Missing people array.");
+    people = importedPeople.map(normalizePerson).filter(Boolean);
+    incident = imported && typeof imported === "object" ? normalizeIncident(imported.incident) : loadIncident();
+    savePeople();
+    localStorage.setItem(INCIDENT_KEY, JSON.stringify(incident));
+    hydrateIncidentForm();
+    render();
+  } catch {
+    alert("Could not import this file. Exported Assignment Roster JSON is expected.");
+  }
+}
+
 function importJson(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    try {
-      const imported = JSON.parse(String(reader.result));
-      const importedPeople = Array.isArray(imported) ? imported : imported.people;
-      if (!Array.isArray(importedPeople)) throw new Error("Missing people array.");
-      people = importedPeople.map(normalizePerson);
-      incident = imported.incident ? { ...loadIncident(), ...imported.incident } : incident;
-      savePeople();
-      localStorage.setItem(INCIDENT_KEY, JSON.stringify(incident));
-      hydrateIncidentForm();
-      render();
-    } catch (error) {
-      alert("Could not import this file. Exported Assignment Roster JSON is expected.");
-    } finally {
-      els.importInput.value = "";
-    }
+    importJsonText(String(reader.result || ""));
+    els.importInput.value = "";
   };
   reader.readAsText(file);
+}
+
+function normalizeIncident(importedIncident) {
+  if (!importedIncident || typeof importedIncident !== "object") return loadIncident();
+  return { ...loadIncident(), ...importedIncident };
 }
 
 function normalizePerson(person) {
