@@ -340,37 +340,12 @@ function bindRadiusDrawingEvents() {
 function renderRadii() {
   radiiLayer.clearLayers();
   radii.forEach(item => {
-    const circle = L.circle([item.center.lat, item.center.lng], {
+    L.circle([item.center.lat, item.center.lng], {
       radius: Number(item.radiusMeters),
       color: TYPE_COLORS[item.type] || TYPE_COLORS.Ground,
       weight: 2,
       fillOpacity: 0.08
     }).addTo(radiiLayer);
-
-    const handle = L.marker([item.center.lat, item.center.lng], {
-      draggable: true,
-      icon: L.divIcon({
-        className: "radius-handle-wrapper",
-        html: `<span style="display:block;width:12px;height:12px;border-radius:999px;background:${TYPE_COLORS[item.type] || TYPE_COLORS.Ground};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`,
-        iconSize: [14, 14],
-        iconAnchor: [7, 7]
-      })
-    }).addTo(radiiLayer);
-
-    handle.on("drag", event => {
-      const point = event.target.getLatLng();
-      circle.setLatLng(point);
-    });
-
-    handle.on("dragend", event => {
-      const point = event.target.getLatLng();
-      item.center = {
-        lat: Number(point.lat.toFixed(6)),
-        lng: Number(point.lng.toFixed(6))
-      };
-      saveRadii();
-      render();
-    });
   });
 }
 
