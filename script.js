@@ -47,6 +47,7 @@ let activeRadius = null;
 let draftCircle = null;
 let movingRadiusId = null;
 let movingRadiusOffset = null;
+let kmlLayer = null;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -68,10 +69,11 @@ const els = {
   search: document.getElementById("searchInput"),
   exportBtn: document.getElementById("exportBtn"),
   importInput: document.getElementById("importInput"),
-  copySummaryBtn: document.getElementById("copySummaryBtn")
-  ,
+  copySummaryBtn: document.getElementById("copySummaryBtn"),
   drawRadiusBtn: document.getElementById("drawRadiusBtn"),
-  clearRadiiBtn: document.getElementById("clearRadiiBtn")
+  clearRadiiBtn: document.getElementById("clearRadiiBtn"),
+  kmlInput: document.getElementById("kmlInput"),
+  clearKmlBtn: document.getElementById("clearKmlBtn")
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -103,6 +105,8 @@ function bindEvents() {
   els.copySummaryBtn.addEventListener("click", copySummary);
   els.drawRadiusBtn.addEventListener("click", toggleRadiusMode);
   els.clearRadiiBtn.addEventListener("click", clearRadii);
+  els.kmlInput.addEventListener("change", importKml);
+  els.clearKmlBtn.addEventListener("click", clearKml);
 }
 
 function initMap() {
@@ -491,6 +495,92 @@ function copySummary() {
     () => alert("Resource summary copied."),
     () => alert("Could not copy the summary.")
   );
+}
+
+
+function importKml(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const xml = new DOMParser().parseFromString(String(reader.result), "application/xml");
+      if (xml.querySelector("parsererror")) throw new Error("Invalid XML");
+      const features = parseKmlFeatures(xml);
+      if (!features.length) throw new Error("No supported geometry");
+
+      const geoJson = { type: "FeatureCollection", features };
+      if (kmlLayer) map.removeLayer(kmlLayer);
+      kmlLayer = L.geoJSON(geoJson, {
+        style: { color: "#0f766e", weight: 3, opacity: 0.9, fillOpacity: 0.14 },
+        pointToLayer: (_feature, latlng) => L.circleMarker(latlng, { radius: 6, color: "#0f766e", fillColor: "#14b8a6", fillOpacity: 0.9, weight: 2 }),
+        onEachFeature: (feature, layer) => {
+          const name = feature.properties?.name;
+          if (name) layer.bindPopup(`<strong>${escapeHtml(name)}</strong>`);
+        }
+      }).addTo(map);
+
+      const bounds = kmlLayer.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
+    } catch (_error) {
+      alert("Could not import this KML file. Please upload a valid Google Earth KML with Point, LineString, or Polygon data.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  reader.readAsText(file);
+}
+
+function clearKml() {
+  if (!kmlLayer) return;
+  map.removeLayer(kmlLayer);
+  kmlLayer = null;
+}
+
+function parseKmlFeatures(xml) {
+  const placemarks = Array.from(xml.getElementsByTagName("Placemark"));
+  return placemarks.flatMap(placemark => {
+    const name = placemark.getElementsByTagName("name")[0]?.textContent?.trim() || "";
+
+    const point = placemark.getElementsByTagName("Point")[0];
+    if (point) {
+      const coordinates = extractCoordinates(point);
+      if (coordinates.length) {
+        return [{ type: "Feature", properties: { name }, geometry: { type: "Point", coordinates: coordinates[0] } }];
+      }
+    }
+
+    const line = placemark.getElementsByTagName("LineString")[0];
+    if (line) {
+      const coordinates = extractCoordinates(line);
+      if (coordinates.length > 1) {
+        return [{ type: "Feature", properties: { name }, geometry: { type: "LineString", coordinates } }];
+      }
+    }
+
+    const polygon = placemark.getElementsByTagName("Polygon")[0];
+    if (polygon) {
+      const outerBoundary = polygon.getElementsByTagName("outerBoundaryIs")[0] || polygon;
+      const ring = extractCoordinates(outerBoundary);
+      if (ring.length > 2) {
+        return [{ type: "Feature", properties: { name }, geometry: { type: "Polygon", coordinates: [ring] } }];
+      }
+    }
+
+    return [];
+  });
+}
+
+function extractCoordinates(parent) {
+  const text = parent.getElementsByTagName("coordinates")[0]?.textContent || "";
+  return text
+    .trim()
+    .split(/\s+/)
+    .map(raw => raw.split(",").map(Number))
+    .filter(parts => Number.isFinite(parts[0]) && Number.isFinite(parts[1]))
+    .map(parts => [parts[0], parts[1]]);
 }
 
 function makeBadge(text, className) {
