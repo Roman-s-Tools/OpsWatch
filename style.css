@@ -486,8 +486,16 @@ textarea:focus {
 
 #crewStaffingFrame {
   width: 100%;
-  min-height: 70vh;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: #fff;
+  min-height: 78vh;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+#crewstaffingApp {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
 }
