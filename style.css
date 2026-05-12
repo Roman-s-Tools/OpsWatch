@@ -259,6 +259,37 @@ textarea:focus {
   color: #344054;
 }
 
+.command-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.command-kpi {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: #fff;
+}
+
+.command-kpi p {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.command-status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
 .modal-card .button {
   margin-top: 8px;
 }
