@@ -7,7 +7,9 @@ const TYPE_COLORS = {
   Ground: "#2563eb",
   sUAS: "#7c3aed",
   Air: "#dc2626",
-  Vehicle: "#ea580c"
+  Vehicle: "#ea580c",
+  "Incident Command Post": "#0f766e",
+  "Staging Area": "#9333ea"
 };
 
 const defaultResources = [
