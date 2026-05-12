@@ -99,7 +99,8 @@ const els = {
   fieldNoteRole: document.getElementById("fieldNoteRole"),
   fieldNoteText: document.getElementById("fieldNoteText"),
   fieldNotesList: document.getElementById("fieldNotesList"),
-  fieldNotesCount: document.getElementById("fieldNotesCount")
+  fieldNotesCount: document.getElementById("fieldNotesCount"),
+  fieldNotesPrintBtn: document.getElementById("fieldNotesPrintBtn")
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -982,6 +983,7 @@ function bindFieldNotesControls() {
   els.fieldNoteName?.addEventListener("input", saveFieldNoteAuthor);
   els.fieldNoteRole?.addEventListener("input", saveFieldNoteAuthor);
   els.fieldNoteForm?.addEventListener("submit", addFieldNote);
+  els.fieldNotesPrintBtn?.addEventListener("click", printFieldNotes);
 }
 
 function addFieldNote(event) {
@@ -1017,11 +1019,38 @@ function renderFieldNotes() {
     const card = document.createElement("article");
     card.className = "resource-card";
     const timeLabel = new Date(note.createdAt).toLocaleString();
-    card.innerHTML = `<div class="resource-card-main"><div class="badges"><span class="badge">${escapeHtml(note.role)}</span></div><h3>${escapeHtml(note.name)}</h3><p class="resource-notes">${escapeHtml(note.text)}</p><p class="resource-meta">Recorded: ${escapeHtml(timeLabel)}</p></div>`;
+    card.innerHTML = `<div class="resource-card-main"><div class="badges"><span class="badge">${escapeHtml(note.role)}</span></div><h3>${escapeHtml(note.name)}</h3><p class="resource-notes">${escapeHtml(note.text)}</p><p class="resource-meta">Recorded: ${escapeHtml(timeLabel)}</p></div><div class="resource-actions"><button type="button" class="note-delete-btn" aria-label="Delete field note">✕</button></div>`;
+    card.querySelector(".note-delete-btn")?.addEventListener("click", () => deleteFieldNote(note.id));
     els.fieldNotesList.appendChild(card);
   });
 
   els.fieldNotesCount.textContent = `${fieldNotes.length} ${fieldNotes.length === 1 ? "note" : "notes"} recorded`;
+}
+
+
+function deleteFieldNote(noteId) {
+  fieldNotes = fieldNotes.filter(note => note.id !== noteId);
+  saveFieldNotes();
+  renderFieldNotes();
+}
+
+function printFieldNotes() {
+  const notesMarkup = fieldNotes.length
+    ? fieldNotes
+        .map(note => {
+          const timeLabel = new Date(note.createdAt).toLocaleString();
+          return `<article class="note-print-card"><h3>${escapeHtml(note.name)}</h3><p class="note-print-role">Role: ${escapeHtml(note.role)}</p><p>${escapeHtml(note.text)}</p><p class="note-print-time">Recorded: ${escapeHtml(timeLabel)}</p></article>`;
+        })
+        .join("")
+    : '<p>No field notes recorded yet.</p>';
+
+  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+  if (!printWindow) return;
+
+  printWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><title>Field Notes Report</title><style>body{font-family:Inter,Arial,sans-serif;margin:24px;color:#111827}h1{margin-bottom:8px}p{line-height:1.5}.note-print-card{border:1px solid #d1d5db;border-radius:12px;padding:12px 14px;margin-bottom:12px}.note-print-role,.note-print-time{color:#374151;font-size:0.95rem;margin:6px 0}@media print{body{margin:0.5in}}</style></head><body><h1>Field Notes Report</h1><p>Generated: ${escapeHtml(new Date().toLocaleString())}</p>${notesMarkup}</body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 function loadFieldNotes() {

@@ -596,3 +596,20 @@ textarea:focus {
 .assignment-remove {
   min-height: 34px;
 }
+
+.note-delete-btn {
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.note-delete-btn:hover {
+  background: #fecaca;
+  border-color: #fca5a5;
+}
