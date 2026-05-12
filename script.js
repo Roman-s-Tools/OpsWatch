@@ -86,7 +86,14 @@ const els = {
   crewPrintBtn: document.getElementById("crewPrintBtn"),
   crewExportBtn: document.getElementById("crewExportBtn"),
   crewImportInput: document.getElementById("crewImportInput"),
-  crewClearBtn: document.getElementById("crewClearBtn")
+  crewClearBtn: document.getElementById("crewClearBtn"),
+  fieldNotesPanel: document.getElementById("fieldNotesApp"),
+  fieldNoteForm: document.getElementById("fieldNoteForm"),
+  fieldNoteName: document.getElementById("fieldNoteName"),
+  fieldNoteRole: document.getElementById("fieldNoteRole"),
+  fieldNoteText: document.getElementById("fieldNoteText"),
+  fieldNotesList: document.getElementById("fieldNotesList"),
+  fieldNotesCount: document.getElementById("fieldNotesCount")
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -95,9 +102,11 @@ document.addEventListener("DOMContentLoaded", () => {
   bindToolTabs();
   bindCrewStaffingControls();
   bindAssignmentBoardControls();
+  bindFieldNotesControls();
   loadAssignmentPeople();
   render();
   renderAssignmentBoard();
+  renderFieldNotes();
 });
 
 function bindCrewStaffingControls() {
@@ -136,12 +145,15 @@ function setActiveTool(tool) {
   const opswatchActive = tool === "opswatch";
   const crewStaffingActive = tool === "crewstaffing";
   const assignmentBoardActive = tool === "assignmentboard";
+  const fieldNotesActive = tool === "fieldnotes";
   els.opswatchPanel.classList.toggle("active", opswatchActive);
   els.crewStaffingPanel.classList.toggle("active", crewStaffingActive);
   els.assignmentBoardPanel.classList.toggle("active", assignmentBoardActive);
+  els.fieldNotesPanel.classList.toggle("active", fieldNotesActive);
   els.opswatchPanel.hidden = !opswatchActive;
   els.crewStaffingPanel.hidden = !crewStaffingActive;
   els.assignmentBoardPanel.hidden = !assignmentBoardActive;
+  els.fieldNotesPanel.hidden = !fieldNotesActive;
 
   els.toolTabs.forEach(button => {
     const active = button.dataset.tool === tool;
@@ -769,6 +781,7 @@ function normalizeResource(resource) {
 
 const CREW_STAFFING_STORAGE_KEY = "romans-assignment-roster-v1";
 const ASSIGNMENT_BOARD_STORAGE_KEY = "romans-assignment-board-v1";
+const FIELD_NOTES_STORAGE_KEY = "romans-field-notes-v1";
 const IMT_POSITIONS = [
   "Incident Commander",
   "Deputy Incident Commander",
@@ -789,6 +802,7 @@ const IMT_POSITIONS = [
 
 let assignmentPeople = [];
 let assignmentSlots = loadAssignmentBoard();
+let fieldNotes = loadFieldNotes();
 
 Object.assign(els, {
   assignmentBoardPanel: document.getElementById("assignmentBoardApp"),
@@ -931,4 +945,61 @@ function loadAssignmentBoard() {
 
 function saveAssignmentBoard() {
   localStorage.setItem(ASSIGNMENT_BOARD_STORAGE_KEY, JSON.stringify(assignmentSlots));
+}
+
+
+function bindFieldNotesControls() {
+  els.fieldNoteForm?.addEventListener("submit", addFieldNote);
+}
+
+function addFieldNote(event) {
+  event.preventDefault();
+  const name = els.fieldNoteName.value.trim();
+  const role = els.fieldNoteRole.value.trim();
+  const text = els.fieldNoteText.value.trim();
+  if (!name || !role || !text) return;
+
+  fieldNotes.unshift({
+    id: crypto.randomUUID(),
+    name,
+    role,
+    text,
+    createdAt: new Date().toISOString()
+  });
+
+  saveFieldNotes();
+  els.fieldNoteForm.reset();
+  renderFieldNotes();
+}
+
+function renderFieldNotes() {
+  if (!els.fieldNotesList || !els.fieldNotesCount) return;
+  els.fieldNotesList.innerHTML = "";
+
+  if (!fieldNotes.length) {
+    els.fieldNotesList.innerHTML = '<p class="empty-state">No field notes recorded yet.</p>';
+  }
+
+  fieldNotes.forEach(note => {
+    const card = document.createElement("article");
+    card.className = "resource-card";
+    const timeLabel = new Date(note.createdAt).toLocaleString();
+    card.innerHTML = `<div class="resource-card-main"><div class="badges"><span class="badge">${escapeHtml(note.role)}</span></div><h3>${escapeHtml(note.name)}</h3><p class="resource-notes">${escapeHtml(note.text)}</p><p class="resource-meta">Recorded: ${escapeHtml(timeLabel)}</p></div>`;
+    els.fieldNotesList.appendChild(card);
+  });
+
+  els.fieldNotesCount.textContent = `${fieldNotes.length} ${fieldNotes.length === 1 ? "note" : "notes"} recorded`;
+}
+
+function loadFieldNotes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FIELD_NOTES_STORAGE_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFieldNotes() {
+  localStorage.setItem(FIELD_NOTES_STORAGE_KEY, JSON.stringify(fieldNotes));
 }
