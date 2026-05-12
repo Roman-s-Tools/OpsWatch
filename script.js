@@ -1,5 +1,6 @@
 const STORAGE_KEY = "romans-resource-tracker-v1";
 const RADII_STORAGE_KEY = "romans-resource-radii-v1";
+const WMIRS_DISCLAIMER_ACK_KEY = "romans-wmirs-disclaimer-ack-v1";
 const RESOURCE_STATUSES = ["Available", "Assigned", "Enroute", "Onscene", "Offline"];
 
 const TYPE_COLORS = {
@@ -74,6 +75,7 @@ const els = {
   search: document.getElementById("searchInput"),
   exportBtn: document.getElementById("exportBtn"),
   importInput: document.getElementById("importInput"),
+  showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
   drawRadiusBtn: document.getElementById("drawRadiusBtn"),
   clearRadiiBtn: document.getElementById("clearRadiiBtn"),
@@ -87,6 +89,8 @@ const els = {
   crewExportBtn: document.getElementById("crewExportBtn"),
   crewImportInput: document.getElementById("crewImportInput"),
   crewClearBtn: document.getElementById("crewClearBtn"),
+  wmirsDisclaimerModal: document.getElementById("wmirsDisclaimerModal"),
+  wmirsDisclaimerAcknowledgeBtn: document.getElementById("wmirsDisclaimerAcknowledgeBtn"),
   fieldNotesPanel: document.getElementById("fieldNotesApp"),
   fieldNoteForm: document.getElementById("fieldNoteForm"),
   fieldNoteName: document.getElementById("fieldNoteName"),
@@ -97,6 +101,7 @@ const els = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  initWmirsDisclaimer();
   initMap();
   bindEvents();
   bindToolTabs();
@@ -108,6 +113,19 @@ document.addEventListener("DOMContentLoaded", () => {
   renderAssignmentBoard();
   renderFieldNotes();
 });
+
+function initWmirsDisclaimer() {
+  if (!els.wmirsDisclaimerModal || !els.wmirsDisclaimerAcknowledgeBtn) return;
+  els.wmirsDisclaimerAcknowledgeBtn.addEventListener("click", acknowledgeWmirsDisclaimer);
+  const acknowledged = localStorage.getItem(WMIRS_DISCLAIMER_ACK_KEY) === "true";
+  if (acknowledged) return;
+  els.wmirsDisclaimerModal.classList.remove("hidden");
+}
+
+function acknowledgeWmirsDisclaimer() {
+  localStorage.setItem(WMIRS_DISCLAIMER_ACK_KEY, "true");
+  els.wmirsDisclaimerModal?.classList.add("hidden");
+}
 
 function bindCrewStaffingControls() {
   if (!els.crewStaffingFrame) return;
@@ -186,11 +204,16 @@ function bindEvents() {
 
   els.exportBtn.addEventListener("click", exportJson);
   els.importInput.addEventListener("change", importJson);
+  els.showDisclaimerBtn?.addEventListener("click", showWmirsDisclaimer);
   els.copySummaryBtn.addEventListener("click", copySummary);
   els.drawRadiusBtn.addEventListener("click", toggleRadiusMode);
   els.clearRadiiBtn.addEventListener("click", clearRadii);
   els.kmlInput.addEventListener("change", importKml);
   els.clearKmlBtn.addEventListener("click", clearKml);
+}
+
+function showWmirsDisclaimer() {
+  els.wmirsDisclaimerModal?.classList.remove("hidden");
 }
 
 function initMap() {
