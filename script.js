@@ -889,6 +889,10 @@ function openDashboardWindow() {
     h2{margin:0 0 8px;font-size:1.05rem}.muted{color:#6b7280;font-size:.9rem}
     .resource{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-bottom:8px}
     .badge{display:inline-block;background:#111827;color:#fff;border-radius:999px;padding:2px 8px;font-size:.75rem}
+    .status-green{background:#15803d}
+    .status-yellow{background:#ca8a04;color:#111827}
+    .status-red{background:#b91c1c}
+    .status-black{background:#111827}
     .status{font-weight:700}
     .banner{position:fixed;top:0;left:0;right:0;z-index:20;background:#991b1b;color:#fff;padding:8px 0;overflow:hidden}
     .banner.hidden{display:none}
@@ -906,6 +910,7 @@ function openDashboardWindow() {
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const TYPE_COLORS = ${JSON.stringify(TYPE_COLORS)};
+    const COMMAND_STATUS_CLASS = { Green: "status-green", Yellow: "status-yellow", Red: "status-red", Black: "status-black" };
     const map = L.map("dashboardMap").setView([29.7604, -95.3698], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
     const markersLayer = L.layerGroup().addTo(map);
@@ -940,7 +945,9 @@ function openDashboardWindow() {
       (command.assignments || []).forEach(item => {
         const card = document.createElement("article");
         card.className = "resource";
-        card.innerHTML = "<div><span class='badge'>" + (item.status || "Green") + "</span></div><strong>" + (item.name || "Unassigned") + "</strong><div class='muted'>" + (item.position || "") + "</div>";
+        const statusLabel = item.status || "Green";
+        const statusClass = COMMAND_STATUS_CLASS[statusLabel] || "status-green";
+        card.innerHTML = "<div><span class='badge " + statusClass + "'>" + statusLabel + "</span></div><strong>" + (item.name || "Unassigned") + "</strong><div class='muted'>" + (item.position || "") + "</div>";
         commandAssignments.appendChild(card);
       });
 
