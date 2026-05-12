@@ -366,6 +366,14 @@ textarea:focus {
   background: #f8fafc;
 }
 
+.resource-actions .status-select {
+  min-width: 130px;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
 .resource-actions .danger {
   color: #b42318;
   border-color: #fecaca;

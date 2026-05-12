@@ -1,5 +1,7 @@
 const STORAGE_KEY = "romans-resource-tracker-v1";
 const RADII_STORAGE_KEY = "romans-resource-radii-v1";
+const RESOURCE_STATUSES = ["Available", "Assigned", "Enroute", "Onscene", "Offline"];
+
 const TYPE_COLORS = {
   Ground: "#2563eb",
   sUAS: "#7c3aed",
@@ -235,6 +237,23 @@ function renderList(visible) {
 
     const actions = card.querySelector(".resource-actions");
 
+
+    const statusSelect = document.createElement("select");
+    statusSelect.className = "status-select";
+
+    RESOURCE_STATUSES.forEach(statusOption => {
+      const option = document.createElement("option");
+      option.value = statusOption;
+      option.textContent = statusOption;
+      option.selected = statusOption === resource.status;
+      statusSelect.appendChild(option);
+    });
+
+    statusSelect.addEventListener("change", event => {
+      updateResourceStatus(resource.id, event.target.value);
+    });
+    actions.appendChild(statusSelect);
+
     if (resource.type === "Air") {
       actions.appendChild(makeLink("FlightAware", buildFlightAwareUrl(resource.tail)));
       actions.appendChild(makeLink("Flightradar24", buildFlightRadarUrl(resource.tail)));
@@ -389,6 +408,16 @@ function renderRadii() {
 function clearRadii() {
   radii = [];
   saveRadii();
+  render();
+}
+
+
+function updateResourceStatus(id, status) {
+  const resource = resources.find(item => item.id === id);
+  if (!resource || !RESOURCE_STATUSES.includes(status)) return;
+
+  resource.status = status;
+  saveResources();
   render();
 }
 
