@@ -795,7 +795,6 @@ Object.assign(els, {
   assignmentRoster: document.getElementById("assignmentRoster"),
   assignmentGrid: document.getElementById("assignmentGrid"),
   assignmentReloadBtn: document.getElementById("assignmentReloadBtn"),
-  assignmentPrintBtn: document.getElementById("assignmentPrintBtn"),
   assignmentImportInput: document.getElementById("assignmentImportInput"),
   assignmentClearBtn: document.getElementById("assignmentClearBtn")
 });
@@ -807,7 +806,6 @@ function bindAssignmentBoardControls() {
     loadAssignmentPeople();
     renderAssignmentBoard();
   });
-  els.assignmentPrintBtn?.addEventListener("click", printAssignmentBoard);
   els.assignmentImportInput?.addEventListener("change", importAssignmentPrefill);
   els.assignmentClearBtn?.addEventListener("click", () => {
     assignmentSlots = {};
@@ -852,26 +850,6 @@ function importAssignmentPrefill(event) {
     }
   };
   reader.readAsText(file);
-}
-
-function printAssignmentBoard() {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1100,height=800");
-  if (!printWindow) {
-    alert("Popup blocked. Allow popups and try again to print the assignment board.");
-    return;
-  }
-
-  const rows = IMT_POSITIONS.map(position => {
-    const assignedId = assignmentSlots[position] || "";
-    const person = assignmentPeople.find(item => item.id === assignedId);
-    const assignmentText = person ? `${escapeHtml(person.name)} (CAPID: ${escapeHtml(person.capid)})` : "Unassigned";
-    return `<tr><td>${escapeHtml(position)}</td><td>${assignmentText}</td></tr>`;
-  }).join("");
-
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>Assignment Board</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 6px}p{margin:0 0 18px;color:#555}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;vertical-align:top}th{background:#f1f5f9}</style></head><body><h1>Assignment Board</h1><p>Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Position</th><th>Assigned Person</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
 }
 
 function loadAssignmentPeople() {
