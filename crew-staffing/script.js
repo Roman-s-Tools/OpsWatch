@@ -47,10 +47,19 @@ const CHAIN_OF_COMMAND_ORDER = [
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
+  applyEmbedMode();
   hydrateIncidentForm();
   bindEvents();
   render();
 });
+
+
+function applyEmbedMode() {
+  const isEmbedded = new URLSearchParams(window.location.search).get("embed") === "1";
+  if (isEmbedded) {
+    document.body.classList.add("embed-mode");
+  }
+}
 
 function bindEvents() {
   els.form.addEventListener("submit", addPerson);
