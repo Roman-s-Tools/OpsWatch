@@ -25,9 +25,45 @@
       <button id="wmirsDisclaimerAcknowledgeBtn" class="button primary" type="button">I Understand</button>
     </section>
   </div>
-  <header class="site-header"><div class="container header-grid"><div><p class="eyebrow">Roman's Toolbox</p><h1>Crew Watch</h1><p class="lede">Track ground teams, sUAS teams, and air resources from one lightweight operations board. Place map icons for all resource types and drag them to reflect movement in real time. Air resources can also be opened in FlightAware or Flightradar24 by registration number.</p></div><div class="header-actions"><button id="copySummaryBtn" class="button secondary" type="button">Copy Summary</button><button id="exportBtn" class="button secondary" type="button">Export JSON</button><label class="button secondary file-button">Import JSON<input id="importInput" type="file" accept="application/json" /></label><button id="seedDemoDataBtn" class="button secondary" type="button">Load Demo Data</button><button id="clearResourcesPeopleBtn" class="button secondary" type="button">Clear Resources + People</button><button id="openDashboardBtn" class="button secondary" type="button">Dashboard</button><button id="showDisclaimerBtn" class="button secondary" type="button">Disclaimer</button></div></div></header>
+  <header class="site-header">
+    <div class="container header-grid">
+      <div>
+        <p class="eyebrow">Roman's Toolbox</p>
+        <h1>Crew Watch</h1>
+        <p class="lede">
+          Track ground teams, sUAS teams, and air resources from one lightweight operations board.
+          Place map icons for all resource types and drag them to reflect movement in real time.
+          Air resources can also be opened in FlightAware or Flightradar24 by registration number.
+        </p>
+      </div>
+      <div class="header-actions">
+        <button id="copySummaryBtn" class="button secondary" type="button">Copy Summary</button>
+        <button id="exportBtn" class="button secondary" type="button">Export JSON</button>
+        <label class="button secondary file-button">
+          Import JSON
+          <input id="importInput" type="file" accept="application/json" />
+        </label>
+        <button id="seedDemoDataBtn" class="button secondary" type="button">Load Demo Data</button>
+        <button id="clearResourcesPeopleBtn" class="button secondary" type="button">Clear Resources + People</button>
+        <button id="openDashboardBtn" class="button secondary" type="button">Dashboard</button>
+        <button id="showDisclaimerBtn" class="button secondary" type="button">Disclaimer</button>
+      </div>
+    </div>
+  </header>
   <main class="container tool-shell">
-    <section class="panel tool-switcher" aria-label="Tool switcher"><div><h2>Tool Mode</h2><p>Switch between Ops Watch, Crew Staffing, Assignment Board, and Field Notes from one workspace.</p></div><div class="tool-tabs" role="tablist"><button class="tool-tab active" data-tool="opswatch" type="button" role="tab" aria-selected="true">Ops Watch</button><button class="tool-tab" data-tool="crewstaffing" type="button" role="tab" aria-selected="false">Crew Staffing</button><button class="tool-tab" data-tool="assignmentboard" type="button" role="tab" aria-selected="false">Assignment Board</button><button class="tool-tab" data-tool="fieldnotes" type="button" role="tab" aria-selected="false">Field Notes</button><button class="tool-tab" data-tool="command" type="button" role="tab" aria-selected="false">Command</button></div></section>
+    <section class="panel tool-switcher" aria-label="Tool switcher">
+      <div>
+        <h2>Tool Mode</h2>
+        <p>Switch between Ops Watch, Crew Staffing, Assignment Board, and Field Notes from one workspace.</p>
+      </div>
+      <div class="tool-tabs" role="tablist">
+        <button class="tool-tab active" data-tool="opswatch" type="button" role="tab" aria-selected="true">Ops Watch</button>
+        <button class="tool-tab" data-tool="crewstaffing" type="button" role="tab" aria-selected="false">Crew Staffing</button>
+        <button class="tool-tab" data-tool="assignmentboard" type="button" role="tab" aria-selected="false">Assignment Board</button>
+        <button class="tool-tab" data-tool="fieldnotes" type="button" role="tab" aria-selected="false">Field Notes</button>
+        <button class="tool-tab" data-tool="command" type="button" role="tab" aria-selected="false">Command</button>
+      </div>
+    </section>
 
     <section id="opswatchApp" class="main-grid tool-panel active" role="tabpanel">
     <section class="panel"><div class="panel-heading"><h2>Add Resource</h2><p>Use coordinates for map icons (Ground, sUAS, Air, and Vehicles). Air resources need a tail number, and vehicles need a vehicle number.</p></div><form id="resourceForm" class="resource-form"><label>Resource Type<select id="resourceType" required><option value="Ground">Ground</option><option value="sUAS">sUAS</option><option value="Air">Air</option><option value="Vehicle">Vehicle</option><option value="Incident Command Post">Incident Command Post</option><option value="Staging Area">Staging Area</option></select></label><label>Resource Name<input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required /></label><label>Crew<input id="resourceCrew" type="text" placeholder="Names or team assigned to this resource" /></label><div id="mapFields"><label>Map Label<input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" /></label><div class="two-column"><label>Latitude<input id="latitude" type="number" step="any" placeholder="29.7604" required /></label><label>Longitude<input id="longitude" type="number" step="any" placeholder="-95.3698" required /></label></div><button id="useLocationBtn" class="button secondary full-width" type="button">Use My Current Location</button></div><div id="airFields" class="hidden"><label>Tail Number / Registration<input id="tailNumber" type="text" placeholder="N12345" /></label></div><div id="vehicleFields" class="hidden"><label>Vehicle Number<input id="vehicleNumber" type="text" placeholder="Unit 42" /></label></div><label>Status<select id="status"><option>Available</option><option>Assigned</option><option>Enroute</option><option>Onscene</option><option>Offline</option></select></label><label>Notes<textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea></label><button class="button primary full-width" type="submit">Add Resource</button></form></section>
@@ -54,7 +90,7 @@
         </div>
         <div class="header-actions">
           <button id="assignmentReloadBtn" class="button secondary" type="button">Reload from Crew Staffing</button>
-                    <label class="button secondary file-button">Upload Prefill JSON<input id="assignmentImportInput" type="file" accept="application/json" /></label>
+          <label class="button secondary file-button">Upload Prefill JSON<input id="assignmentImportInput" type="file" accept="application/json" /></label>
           <button id="assignmentClearBtn" class="button secondary" type="button">Clear Assignments</button>
         </div>
       </div>
@@ -122,8 +158,27 @@
       </section>
     </section>
   </main>
-  <footer class="site-footer"><div class="container"><p>Operational note: this tool saves data in your browser using local storage. Export JSON when you need to preserve or transfer a board. Aircraft visibility depends on public tracking availability and each provider's restrictions.</p><p class="version">Version 1. Last updated May 11, 2026.</p></div></footer>
-  <template id="resourceCardTemplate"><article class="resource-card"><div class="resource-card-main"><div class="badges"></div><h3></h3><p class="resource-notes"></p><p class="resource-meta"></p></div><div class="resource-actions"></div></article></template>
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        Operational note: this tool saves data in your browser using local storage.
+        Export JSON when you need to preserve or transfer a board.
+        Aircraft visibility depends on public tracking availability and each provider's restrictions.
+      </p>
+      <p class="version">Version 1. Last updated May 11, 2026.</p>
+    </div>
+  </footer>
+  <template id="resourceCardTemplate">
+    <article class="resource-card">
+      <div class="resource-card-main">
+        <div class="badges"></div>
+        <h3></h3>
+        <p class="resource-notes"></p>
+        <p class="resource-meta"></p>
+      </div>
+      <div class="resource-actions"></div>
+    </article>
+  </template>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="script.js"></script>
 </body>

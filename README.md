@@ -44,7 +44,7 @@ Available workspace controls for the embedded tool:
 - Import JSON
 - Clear page
 
-## 3) Assignment Board
+### 3) Assignment Board
 The Assignment Board allows you to place signed-in personnel into Incident Management Team positions.
 
 - Reload personnel from Crew Staffing data.
@@ -53,7 +53,7 @@ The Assignment Board allows you to place signed-in personnel into Incident Manag
 - Clear assignments.
 - Uses local storage for persistent workspace state.
 
-## 4) Field Notes
+### 4) Field Notes
 Field Notes provides a quick operational note capture workflow.
 
 - Record **Name**, **Role**, and **Note**.
@@ -61,7 +61,7 @@ Field Notes provides a quick operational note capture workflow.
 - Shows notes count and recorded log.
 - Print Notes / PDF support.
 
-## 5) Command Panel
+### 5) Command Panel
 Command Panel provides mission-level context that stays visible alongside operational tools.
 
 - Track incident name, mission number, operational period, and prepared-by metadata.
