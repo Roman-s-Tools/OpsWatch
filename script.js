@@ -45,6 +45,8 @@ let radii = loadRadii();
 let isDrawRadiusMode = false;
 let activeRadius = null;
 let draftCircle = null;
+let movingRadiusId = null;
+let movingRadiusOffset = null;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -312,6 +314,18 @@ function bindRadiusDrawingEvents() {
   });
 
   map.on("mousemove", event => {
+    if (movingRadiusId) {
+      const radiusToMove = radii.find(item => item.id === movingRadiusId);
+      if (!radiusToMove || !movingRadiusOffset) return;
+
+      radiusToMove.center = {
+        lat: Number((event.latlng.lat - movingRadiusOffset.lat).toFixed(6)),
+        lng: Number((event.latlng.lng - movingRadiusOffset.lng).toFixed(6))
+      };
+      renderRadii();
+      return;
+    }
+
     if (!activeRadius || !draftCircle) return;
     const meters = activeRadius.center.distanceTo(event.latlng);
     activeRadius.radiusMeters = Number(meters.toFixed(1));
@@ -319,6 +333,14 @@ function bindRadiusDrawingEvents() {
   });
 
   map.on("mouseup", () => {
+    if (movingRadiusId) {
+      movingRadiusId = null;
+      movingRadiusOffset = null;
+      map.dragging.enable();
+      saveRadii();
+      return;
+    }
+
     if (!activeRadius || !draftCircle) return;
     map.dragging.enable();
     radii.push({
@@ -340,12 +362,23 @@ function bindRadiusDrawingEvents() {
 function renderRadii() {
   radiiLayer.clearLayers();
   radii.forEach(item => {
-    L.circle([item.center.lat, item.center.lng], {
+    const circle = L.circle([item.center.lat, item.center.lng], {
       radius: Number(item.radiusMeters),
       color: TYPE_COLORS[item.type] || TYPE_COLORS.Ground,
       weight: 2,
       fillOpacity: 0.08
     }).addTo(radiiLayer);
+
+    circle.on("mousedown", event => {
+      if (isDrawRadiusMode) return;
+      const center = L.latLng(item.center.lat, item.center.lng);
+      movingRadiusId = item.id;
+      movingRadiusOffset = {
+        lat: event.latlng.lat - center.lat,
+        lng: event.latlng.lng - center.lng
+      };
+      map.dragging.disable();
+    });
   });
 }
 
