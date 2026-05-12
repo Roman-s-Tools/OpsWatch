@@ -1,4 +1,11 @@
 const STORAGE_KEY = "romans-resource-tracker-v1";
+const RADII_STORAGE_KEY = "romans-resource-radii-v1";
+const TYPE_COLORS = {
+  Ground: "#2563eb",
+  sUAS: "#7c3aed",
+  Air: "#dc2626",
+  Vehicle: "#ea580c"
+};
 
 const defaultResources = [
   {
@@ -32,7 +39,12 @@ let currentFilter = "All";
 let searchQuery = "";
 let map;
 let markersLayer;
+let radiiLayer;
 let userCoords = null;
+let radii = loadRadii();
+let isDrawRadiusMode = false;
+let activeRadius = null;
+let draftCircle = null;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -55,6 +67,9 @@ const els = {
   exportBtn: document.getElementById("exportBtn"),
   importInput: document.getElementById("importInput"),
   copySummaryBtn: document.getElementById("copySummaryBtn")
+  ,
+  drawRadiusBtn: document.getElementById("drawRadiusBtn"),
+  clearRadiiBtn: document.getElementById("clearRadiiBtn")
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -84,12 +99,16 @@ function bindEvents() {
   els.exportBtn.addEventListener("click", exportJson);
   els.importInput.addEventListener("change", importJson);
   els.copySummaryBtn.addEventListener("click", copySummary);
+  els.drawRadiusBtn.addEventListener("click", toggleRadiusMode);
+  els.clearRadiiBtn.addEventListener("click", clearRadii);
 }
 
 function initMap() {
   map = L.map("map").setView([29.7604, -95.3698], 12);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
   markersLayer = L.layerGroup().addTo(map);
+  radiiLayer = L.layerGroup().addTo(map);
+  bindRadiusDrawingEvents();
   refreshUserCoords();
 }
 
@@ -230,6 +249,7 @@ function renderList(visible) {
 
 function renderMap(visible) {
   markersLayer.clearLayers();
+  renderRadii();
   const mapResources = visible.filter(resource => Number.isFinite(Number(resource.lat)) && Number.isFinite(Number(resource.lng)));
   if (!mapResources.length) {
     if (userCoords) map.setView([Number(userCoords.lat), Number(userCoords.lng)], 12);
@@ -238,7 +258,10 @@ function renderMap(visible) {
 
   const bounds = [];
   mapResources.forEach(resource => {
-    const marker = L.marker([Number(resource.lat), Number(resource.lng)], { draggable: true }).addTo(markersLayer);
+    const marker = L.marker([Number(resource.lat), Number(resource.lng)], {
+      draggable: true,
+      icon: createColorMarker(resource.type)
+    }).addTo(markersLayer);
     marker.bindPopup(`<strong>${escapeHtml(resource.name)}</strong><br>${escapeHtml(resource.type)} · ${escapeHtml(resource.label || resource.name)}`);
     marker.on("dragend", event => {
       const point = event.target.getLatLng();
@@ -251,6 +274,110 @@ function renderMap(visible) {
   });
 
   map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+}
+
+function createColorMarker(type) {
+  const color = TYPE_COLORS[type] || "#334155";
+  return L.divIcon({
+    className: "resource-pin-wrapper",
+    html: `<span style="display:block;width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -10]
+  });
+}
+
+function toggleRadiusMode() {
+  isDrawRadiusMode = !isDrawRadiusMode;
+  els.drawRadiusBtn.classList.toggle("active", isDrawRadiusMode);
+  els.drawRadiusBtn.textContent = isDrawRadiusMode ? "Drawing Radius..." : "Draw Radius";
+}
+
+function bindRadiusDrawingEvents() {
+  map.on("mousedown", event => {
+    if (!isDrawRadiusMode) return;
+    activeRadius = {
+      id: crypto.randomUUID(),
+      type: currentFilter === "All" ? "Ground" : currentFilter,
+      center: event.latlng,
+      radiusMeters: 0
+    };
+    draftCircle = L.circle(activeRadius.center, {
+      radius: 0,
+      color: TYPE_COLORS[activeRadius.type] || TYPE_COLORS.Ground,
+      weight: 2,
+      fillOpacity: 0.08
+    }).addTo(radiiLayer);
+    map.dragging.disable();
+  });
+
+  map.on("mousemove", event => {
+    if (!activeRadius || !draftCircle) return;
+    const meters = activeRadius.center.distanceTo(event.latlng);
+    activeRadius.radiusMeters = Number(meters.toFixed(1));
+    draftCircle.setRadius(activeRadius.radiusMeters);
+  });
+
+  map.on("mouseup", () => {
+    if (!activeRadius || !draftCircle) return;
+    map.dragging.enable();
+    radii.push({
+      id: activeRadius.id,
+      type: activeRadius.type,
+      center: {
+        lat: Number(activeRadius.center.lat.toFixed(6)),
+        lng: Number(activeRadius.center.lng.toFixed(6))
+      },
+      radiusMeters: Math.max(activeRadius.radiusMeters, 1)
+    });
+    activeRadius = null;
+    draftCircle = null;
+    saveRadii();
+    render();
+  });
+}
+
+function renderRadii() {
+  radiiLayer.clearLayers();
+  radii.forEach(item => {
+    const circle = L.circle([item.center.lat, item.center.lng], {
+      radius: Number(item.radiusMeters),
+      color: TYPE_COLORS[item.type] || TYPE_COLORS.Ground,
+      weight: 2,
+      fillOpacity: 0.08
+    }).addTo(radiiLayer);
+
+    const handle = L.marker([item.center.lat, item.center.lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: "radius-handle-wrapper",
+        html: `<span style="display:block;width:12px;height:12px;border-radius:999px;background:${TYPE_COLORS[item.type] || TYPE_COLORS.Ground};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      })
+    }).addTo(radiiLayer);
+
+    handle.on("drag", event => {
+      const point = event.target.getLatLng();
+      circle.setLatLng(point);
+    });
+
+    handle.on("dragend", event => {
+      const point = event.target.getLatLng();
+      item.center = {
+        lat: Number(point.lat.toFixed(6)),
+        lng: Number(point.lng.toFixed(6))
+      };
+      saveRadii();
+      render();
+    });
+  });
+}
+
+function clearRadii() {
+  radii = [];
+  saveRadii();
+  render();
 }
 
 function removeResource(id) {
@@ -401,6 +528,19 @@ function loadResources() {
 
 function saveResources() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
+}
+
+function loadRadii() {
+  try {
+    const saved = localStorage.getItem(RADII_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRadii() {
+  localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
 }
 
 function slug(value) {

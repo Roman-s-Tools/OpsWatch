@@ -250,6 +250,19 @@ textarea:focus {
   background: #e9eef5;
 }
 
+.map-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.button.secondary.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 #map iframe {
   width: 100%;
   height: 100%;
