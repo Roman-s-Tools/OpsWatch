@@ -795,6 +795,8 @@ Object.assign(els, {
   assignmentRoster: document.getElementById("assignmentRoster"),
   assignmentGrid: document.getElementById("assignmentGrid"),
   assignmentReloadBtn: document.getElementById("assignmentReloadBtn"),
+  assignmentPrintBtn: document.getElementById("assignmentPrintBtn"),
+  assignmentImportInput: document.getElementById("assignmentImportInput"),
   assignmentClearBtn: document.getElementById("assignmentClearBtn")
 });
 
@@ -805,11 +807,71 @@ function bindAssignmentBoardControls() {
     loadAssignmentPeople();
     renderAssignmentBoard();
   });
+  els.assignmentPrintBtn?.addEventListener("click", printAssignmentBoard);
+  els.assignmentImportInput?.addEventListener("change", importAssignmentPrefill);
   els.assignmentClearBtn?.addEventListener("click", () => {
     assignmentSlots = {};
     saveAssignmentBoard();
     renderAssignmentBoard();
   });
+}
+
+
+function importAssignmentPrefill(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const payload = JSON.parse(String(reader.result || "{}"));
+      const importedPeople = Array.isArray(payload.assignmentPeople) ? payload.assignmentPeople : [];
+      assignmentPeople = importedPeople.map(person => ({
+        id: String(person.id || crypto.randomUUID()),
+        name: String(person.name || "Unnamed Person"),
+        capid: String(person.capid || "Unknown")
+      }));
+
+      const nextSlots = payload.assignmentSlots && typeof payload.assignmentSlots === "object" ? payload.assignmentSlots : {};
+      assignmentSlots = {};
+      Object.entries(nextSlots).forEach(([position, personId]) => {
+        if (!IMT_POSITIONS.includes(position)) return;
+        const normalizedId = String(personId || "");
+        if (assignmentPeople.some(person => person.id === normalizedId)) {
+          assignmentSlots[position] = normalizedId;
+        }
+      });
+
+      localStorage.setItem(CREW_STAFFING_STORAGE_KEY, JSON.stringify(assignmentPeople));
+      saveAssignmentBoard();
+      renderAssignmentBoard();
+    } catch {
+      alert("Could not read assignment prefill JSON. Please upload a valid file.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+  reader.readAsText(file);
+}
+
+function printAssignmentBoard() {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1100,height=800");
+  if (!printWindow) {
+    alert("Popup blocked. Allow popups and try again to print the assignment board.");
+    return;
+  }
+
+  const rows = IMT_POSITIONS.map(position => {
+    const assignedId = assignmentSlots[position] || "";
+    const person = assignmentPeople.find(item => item.id === assignedId);
+    const assignmentText = person ? `${escapeHtml(person.name)} (CAPID: ${escapeHtml(person.capid)})` : "Unassigned";
+    return `<tr><td>${escapeHtml(position)}</td><td>${assignmentText}</td></tr>`;
+  }).join("");
+
+  printWindow.document.write(`<!DOCTYPE html><html><head><title>Assignment Board</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{margin:0 0 6px}p{margin:0 0 18px;color:#555}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;vertical-align:top}th{background:#f1f5f9}</style></head><body><h1>Assignment Board</h1><p>Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Position</th><th>Assigned Person</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 function loadAssignmentPeople() {
