@@ -1,11 +1,12 @@
 # OpsWatch Unified Workspace
 
-OpsWatch is a browser-based multi-tool operations workspace that combines four functions in one interface:
+OpsWatch is a browser-based multi-tool operations workspace that combines five functions in one interface:
 
 1. **Ops Watch** (resource map + tracking board)
 2. **Crew Staffing** (embedded staffing tool from `./crew-staffing`)
 3. **Assignment Board** (drag-and-drop IMT position assignment)
 4. **Field Notes** (timestamped operational note log)
+5. **Command Panel** (incident metadata and status board)
 
 The app is fully client-side and stores data in browser local storage.
 
@@ -60,11 +61,18 @@ Field Notes provides a quick operational note capture workflow.
 - Shows notes count and recorded log.
 - Print Notes / PDF support.
 
+## 5) Command Panel
+Command Panel provides mission-level context that stays visible alongside operational tools.
+
+- Track incident name, mission number, operational period, and prepared-by metadata.
+- Manage a simple status board for command-level updates.
+- Included in workspace persistence alongside resources, assignments, and notes.
+
 ## Safety / Disclaimer Workflow
 On first load, users must acknowledge the WMIRS disclaimer modal before proceeding. A “Disclaimer” button remains available to reopen it later.
 
 ## Data Persistence
-Workspace data is stored in browser local storage (including resources, assignments, and notes). Export JSON for backup or transfer when needed.
+Workspace data is stored in browser local storage (including resources, assignments, field notes, and command panel data). Export JSON for backup or transfer when needed.
 
 ## Local Run
 No build step is required.
@@ -85,7 +93,7 @@ Then browse to `http://localhost:8080`.
 ```text
 /               # OpsWatch workspace shell
 ├── index.html  # Unified multi-tool interface
-├── script.js   # OpsWatch + tool switching + integrations
+├── script.js   # OpsWatch + tool switching + integrations (including Command Panel)
 ├── style.css   # Shared workspace styling
 └── crew-staffing/
     ├── index.html
