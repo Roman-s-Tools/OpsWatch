@@ -75,6 +75,7 @@ const els = {
   search: document.getElementById("searchInput"),
   exportBtn: document.getElementById("exportBtn"),
   importInput: document.getElementById("importInput"),
+  showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
   drawRadiusBtn: document.getElementById("drawRadiusBtn"),
   clearRadiiBtn: document.getElementById("clearRadiiBtn"),
@@ -115,10 +116,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initWmirsDisclaimer() {
   if (!els.wmirsDisclaimerModal || !els.wmirsDisclaimerAcknowledgeBtn) return;
+  els.wmirsDisclaimerAcknowledgeBtn.addEventListener("click", acknowledgeWmirsDisclaimer);
   const acknowledged = localStorage.getItem(WMIRS_DISCLAIMER_ACK_KEY) === "true";
   if (acknowledged) return;
   els.wmirsDisclaimerModal.classList.remove("hidden");
-  els.wmirsDisclaimerAcknowledgeBtn.addEventListener("click", acknowledgeWmirsDisclaimer, { once: true });
 }
 
 function acknowledgeWmirsDisclaimer() {
@@ -203,11 +204,16 @@ function bindEvents() {
 
   els.exportBtn.addEventListener("click", exportJson);
   els.importInput.addEventListener("change", importJson);
+  els.showDisclaimerBtn?.addEventListener("click", showWmirsDisclaimer);
   els.copySummaryBtn.addEventListener("click", copySummary);
   els.drawRadiusBtn.addEventListener("click", toggleRadiusMode);
   els.clearRadiiBtn.addEventListener("click", clearRadii);
   els.kmlInput.addEventListener("change", importKml);
   els.clearKmlBtn.addEventListener("click", clearKml);
+}
+
+function showWmirsDisclaimer() {
+  els.wmirsDisclaimerModal?.classList.remove("hidden");
 }
 
 function initMap() {
