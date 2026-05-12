@@ -906,7 +906,9 @@ function openDashboardWindow() {
     body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#f6f7fb;color:#111827}
     .layout{display:grid;grid-template-columns:320px 1fr 320px;height:100vh;gap:12px;padding:12px}
     .panel{background:#fff;border:1px solid #dfe4ec;border-radius:14px;padding:14px;overflow:auto}
-    #dashboardMap{height:calc(100vh - 52px);border-radius:12px}
+    #dashboardMap{height:calc(100vh - 360px);min-height:360px;border-radius:12px}
+    #operationalObjectives{margin-top:12px}
+    .objective-item{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-bottom:8px}
     h2{margin:0 0 8px;font-size:1.05rem}.muted{color:#6b7280;font-size:.9rem}
     .resource{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-bottom:8px}
     .badge{display:inline-block;background:#111827;color:#fff;border-radius:999px;padding:2px 8px;font-size:.75rem}
@@ -925,7 +927,7 @@ function openDashboardWindow() {
   <div id="commandBanner" class="banner hidden"><div id="commandBannerText"></div></div>
   <div class="layout">
     <section class="panel"><h2>Signed-In Resources</h2><p class="muted" id="resourceCount">0 resources</p><div id="resourceList"></div></section>
-    <section class="panel"><h2>Ops Watch Map</h2><div id="dashboardMap"></div></section>
+    <section class="panel"><h2>Ops Watch Map</h2><div id="dashboardMap"></div><section id="operationalObjectives"><h2>Operational Objectives</h2><div id="objectiveList"></div></section></section>
     <section class="panel"><h2>Command Snapshot</h2><p class="muted" id="commandCounts"></p><div id="commandAssignments"></div></section>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -947,13 +949,26 @@ function openDashboardWindow() {
       const count = document.getElementById("resourceCount");
       const commandCounts = document.getElementById("commandCounts");
       const commandAssignments = document.getElementById("commandAssignments");
+      const objectiveList = document.getElementById("objectiveList");
       const banner = document.getElementById("commandBanner");
       const bannerText = document.getElementById("commandBannerText");
       list.innerHTML = "";
       commandAssignments.innerHTML = "";
+      objectiveList.innerHTML = "";
       count.textContent = resources.length + " resources";
       commandCounts.textContent = "People: " + (command.counts.people || 0) + " · Vehicles: " + (command.counts.vehicles || 0) + " · Aircraft: " + (command.counts.aircraft || 0);
       const showBanner = Boolean(command.banner && command.banner.enabled && command.banner.text);
+      const objectives = command.objectives || {};
+      [["Primary", objectives.primary], ["Secondary", objectives.secondary], ["Tertiary", objectives.tertiary]].forEach(([label, value]) => {
+        if (!value) return;
+        const block = document.createElement("article");
+        block.className = "objective-item";
+        block.innerHTML = "<strong>" + label + "</strong><div class='muted'>" + value + "</div>";
+        objectiveList.appendChild(block);
+      });
+      if (!objectiveList.children.length) {
+        objectiveList.innerHTML = "<p class='muted'>No operational objectives entered.</p>";
+      }
       banner.classList.toggle("hidden", !showBanner);
       bannerText.textContent = showBanner ? command.banner.text : "";
 
@@ -1057,6 +1072,7 @@ let assignmentSlots = loadAssignmentBoard();
 let fieldNotes = loadFieldNotes();
 let commandStatuses = loadCommandStatuses();
 let commandBanner = loadCommandBanner();
+let commandObjectives = loadCommandObjectives();
 
 Object.assign(els, {
   assignmentBoardPanel: document.getElementById("assignmentBoardApp"),
@@ -1071,7 +1087,10 @@ Object.assign(els, {
   commandAircraftCount: document.getElementById("commandAircraftCount"),
   commandStatusList: document.getElementById("commandStatusList"),
   commandBannerText: document.getElementById("commandBannerText"),
-  commandBannerEnabled: document.getElementById("commandBannerEnabled")
+  commandBannerEnabled: document.getElementById("commandBannerEnabled"),
+  commandObjectivePrimary: document.getElementById("commandObjectivePrimary"),
+  commandObjectiveSecondary: document.getElementById("commandObjectiveSecondary"),
+  commandObjectiveTertiary: document.getElementById("commandObjectiveTertiary")
 });
 
 
@@ -1215,6 +1234,9 @@ function saveAssignmentBoard() {
 function bindCommandControls() {
   if (els.commandBannerText) els.commandBannerText.value = commandBanner.text || "";
   if (els.commandBannerEnabled) els.commandBannerEnabled.checked = Boolean(commandBanner.enabled);
+  if (els.commandObjectivePrimary) els.commandObjectivePrimary.value = commandObjectives.primary || "";
+  if (els.commandObjectiveSecondary) els.commandObjectiveSecondary.value = commandObjectives.secondary || "";
+  if (els.commandObjectiveTertiary) els.commandObjectiveTertiary.value = commandObjectives.tertiary || "";
   els.commandBannerText?.addEventListener("input", () => {
     commandBanner.text = els.commandBannerText.value.trim();
     saveCommandBanner();
@@ -1224,6 +1246,15 @@ function bindCommandControls() {
     commandBanner.enabled = Boolean(els.commandBannerEnabled.checked);
     saveCommandBanner();
     postDashboardUpdate();
+  });
+
+  ["commandObjectivePrimary", "commandObjectiveSecondary", "commandObjectiveTertiary"].forEach((key, index) => {
+    const objectiveKey = ["primary", "secondary", "tertiary"][index];
+    els[key]?.addEventListener("input", () => {
+      commandObjectives[objectiveKey] = els[key].value.trim();
+      saveCommandObjectives();
+      postDashboardUpdate();
+    });
   });
 }
 
@@ -1273,7 +1304,12 @@ function buildCommandSnapshot() {
       vehicles: resources.filter(resource => resource.type === "Vehicle").length,
       aircraft: resources.filter(resource => resource.type === "Air").length
     },
-    banner: { text: commandBanner.text || "", enabled: Boolean(commandBanner.enabled) }
+    banner: { text: commandBanner.text || "", enabled: Boolean(commandBanner.enabled) },
+    objectives: {
+      primary: commandObjectives.primary || "",
+      secondary: commandObjectives.secondary || "",
+      tertiary: commandObjectives.tertiary || ""
+    }
   };
 }
 
@@ -1285,6 +1321,11 @@ function loadCommandBanner() {
   try { return JSON.parse(localStorage.getItem(`${COMMAND_STORAGE_KEY}-banner`) || "{\"text\":\"\",\"enabled\":false}"); } catch { return { text: "", enabled: false }; }
 }
 function saveCommandBanner() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-banner`, JSON.stringify(commandBanner)); }
+function loadCommandObjectives() {
+  try { return JSON.parse(localStorage.getItem(`${COMMAND_STORAGE_KEY}-objectives`) || "{\"primary\":\"\",\"secondary\":\"\",\"tertiary\":\"\"}"); }
+  catch { return { primary: "", secondary: "", tertiary: "" }; }
+}
+function saveCommandObjectives() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-objectives`, JSON.stringify(commandObjectives)); }
 
 
 function bindFieldNotesControls() {
