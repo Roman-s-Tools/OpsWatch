@@ -118,6 +118,8 @@ document.addEventListener("DOMContentLoaded", () => {
   render();
   renderAssignmentBoard();
   renderFieldNotes();
+  bindCommandControls();
+  renderCommandPanel();
 });
 
 function initWmirsDisclaimer() {
@@ -170,14 +172,17 @@ function setActiveTool(tool) {
   const crewStaffingActive = tool === "crewstaffing";
   const assignmentBoardActive = tool === "assignmentboard";
   const fieldNotesActive = tool === "fieldnotes";
+  const commandActive = tool === "command";
   els.opswatchPanel.classList.toggle("active", opswatchActive);
   els.crewStaffingPanel.classList.toggle("active", crewStaffingActive);
   els.assignmentBoardPanel.classList.toggle("active", assignmentBoardActive);
   els.fieldNotesPanel.classList.toggle("active", fieldNotesActive);
+  els.commandPanel.classList.toggle("active", commandActive);
   els.opswatchPanel.hidden = !opswatchActive;
   els.crewStaffingPanel.hidden = !crewStaffingActive;
   els.assignmentBoardPanel.hidden = !assignmentBoardActive;
   els.fieldNotesPanel.hidden = !fieldNotesActive;
+  els.commandPanel.hidden = !commandActive;
 
   els.toolTabs.forEach(button => {
     const active = button.dataset.tool === tool;
@@ -347,6 +352,7 @@ function render() {
   renderList(visible);
   queueMapRender(visible);
   els.count.textContent = `${visible.length} visible of ${resources.length} total`;
+  renderCommandPanel();
 }
 
 function queueMapRender(visible) {
@@ -848,6 +854,7 @@ function getDashboardPayload() {
   return {
     resources: resources.map(normalizeResource),
     radii: Array.isArray(radii) ? radii : [],
+    command: buildCommandSnapshot(),
     generatedAt: new Date().toISOString()
   };
 }
@@ -882,18 +889,28 @@ function openDashboardWindow() {
     h2{margin:0 0 8px;font-size:1.05rem}.muted{color:#6b7280;font-size:.9rem}
     .resource{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-bottom:8px}
     .badge{display:inline-block;background:#111827;color:#fff;border-radius:999px;padding:2px 8px;font-size:.75rem}
+    .status-green{background:#15803d}
+    .status-yellow{background:#ca8a04;color:#111827}
+    .status-red{background:#b91c1c}
+    .status-black{background:#111827}
     .status{font-weight:700}
+    .banner{position:fixed;top:0;left:0;right:0;z-index:20;background:#991b1b;color:#fff;padding:8px 0;overflow:hidden}
+    .banner.hidden{display:none}
+    .banner div{white-space:nowrap;display:inline-block;padding-left:100%;animation:scroll 20s linear infinite;font-weight:800}
+    @keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-130%)}}
   </style>
 </head>
 <body>
+  <div id="commandBanner" class="banner hidden"><div id="commandBannerText"></div></div>
   <div class="layout">
     <section class="panel"><h2>Signed-In Resources</h2><p class="muted" id="resourceCount">0 resources</p><div id="resourceList"></div></section>
     <section class="panel"><h2>Ops Watch Map</h2><div id="dashboardMap"></div></section>
-    <section class="panel"><h2>Placeholder</h2><p class="muted">Reserved for your next feature.</p></section>
+    <section class="panel"><h2>Command Snapshot</h2><p class="muted" id="commandCounts"></p><div id="commandAssignments"></div></section>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const TYPE_COLORS = ${JSON.stringify(TYPE_COLORS)};
+    const COMMAND_STATUS_CLASS = { Green: "status-green", Yellow: "status-yellow", Red: "status-red", Black: "status-black" };
     const map = L.map("dashboardMap").setView([29.7604, -95.3698], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
     const markersLayer = L.layerGroup().addTo(map);
@@ -904,16 +921,34 @@ function openDashboardWindow() {
       latestPayload = payload || latestPayload;
       const resources = Array.isArray(latestPayload.resources) ? latestPayload.resources : [];
       const radii = Array.isArray(latestPayload.radii) ? latestPayload.radii : [];
+      const command = latestPayload.command || { assignments: [], counts: {}, banner: { text: "", enabled: false } };
       const list = document.getElementById("resourceList");
       const count = document.getElementById("resourceCount");
+      const commandCounts = document.getElementById("commandCounts");
+      const commandAssignments = document.getElementById("commandAssignments");
+      const banner = document.getElementById("commandBanner");
+      const bannerText = document.getElementById("commandBannerText");
       list.innerHTML = "";
+      commandAssignments.innerHTML = "";
       count.textContent = resources.length + " resources";
+      commandCounts.textContent = "People: " + (command.counts.people || 0) + " · Vehicles: " + (command.counts.vehicles || 0) + " · Aircraft: " + (command.counts.aircraft || 0);
+      const showBanner = Boolean(command.banner && command.banner.enabled && command.banner.text);
+      banner.classList.toggle("hidden", !showBanner);
+      bannerText.textContent = showBanner ? command.banner.text : "";
 
       resources.forEach(resource => {
         const card = document.createElement("article");
         card.className = "resource";
         card.innerHTML = "<div><span class='badge'>" + (resource.type || "Unknown") + "</span> <span class='status'>" + (resource.status || "Unknown") + "</span></div><strong>" + (resource.name || "Unnamed Resource") + "</strong><div class='muted'>" + (resource.label || "") + "</div>";
         list.appendChild(card);
+      });
+      (command.assignments || []).forEach(item => {
+        const card = document.createElement("article");
+        card.className = "resource";
+        const statusLabel = item.status || "Green";
+        const statusClass = COMMAND_STATUS_CLASS[statusLabel] || "status-green";
+        card.innerHTML = "<div><span class='badge " + statusClass + "'>" + statusLabel + "</span></div><strong>" + (item.name || "Unassigned") + "</strong><div class='muted'>" + (item.position || "") + "</div>";
+        commandAssignments.appendChild(card);
       });
 
       markersLayer.clearLayers();
@@ -977,6 +1012,7 @@ const CREW_STAFFING_STORAGE_KEY = "romans-assignment-roster-v1";
 const ASSIGNMENT_BOARD_STORAGE_KEY = "romans-assignment-board-v1";
 const FIELD_NOTES_STORAGE_KEY = "romans-field-notes-v1";
 const FIELD_NOTES_AUTHOR_STORAGE_KEY = "romans-field-notes-author-v1";
+const COMMAND_STORAGE_KEY = "romans-command-status-v1";
 const IMT_POSITIONS = [
   "Incident Commander",
   "Deputy Incident Commander",
@@ -998,6 +1034,8 @@ const IMT_POSITIONS = [
 let assignmentPeople = [];
 let assignmentSlots = loadAssignmentBoard();
 let fieldNotes = loadFieldNotes();
+let commandStatuses = loadCommandStatuses();
+let commandBanner = loadCommandBanner();
 
 Object.assign(els, {
   assignmentBoardPanel: document.getElementById("assignmentBoardApp"),
@@ -1005,7 +1043,14 @@ Object.assign(els, {
   assignmentGrid: document.getElementById("assignmentGrid"),
   assignmentReloadBtn: document.getElementById("assignmentReloadBtn"),
   assignmentImportInput: document.getElementById("assignmentImportInput"),
-  assignmentClearBtn: document.getElementById("assignmentClearBtn")
+  assignmentClearBtn: document.getElementById("assignmentClearBtn"),
+  commandPanel: document.getElementById("commandApp"),
+  commandPeopleCount: document.getElementById("commandPeopleCount"),
+  commandVehicleCount: document.getElementById("commandVehicleCount"),
+  commandAircraftCount: document.getElementById("commandAircraftCount"),
+  commandStatusList: document.getElementById("commandStatusList"),
+  commandBannerText: document.getElementById("commandBannerText"),
+  commandBannerEnabled: document.getElementById("commandBannerEnabled")
 });
 
 
@@ -1127,6 +1172,9 @@ function renderAssignmentBoard() {
 
     els.assignmentGrid.appendChild(slot);
   });
+
+  renderCommandPanel();
+  postDashboardUpdate();
 }
 
 function loadAssignmentBoard() {
@@ -1140,7 +1188,82 @@ function loadAssignmentBoard() {
 
 function saveAssignmentBoard() {
   localStorage.setItem(ASSIGNMENT_BOARD_STORAGE_KEY, JSON.stringify(assignmentSlots));
+  postDashboardUpdate();
 }
+
+function bindCommandControls() {
+  if (els.commandBannerText) els.commandBannerText.value = commandBanner.text || "";
+  if (els.commandBannerEnabled) els.commandBannerEnabled.checked = Boolean(commandBanner.enabled);
+  els.commandBannerText?.addEventListener("input", () => {
+    commandBanner.text = els.commandBannerText.value.trim();
+    saveCommandBanner();
+    postDashboardUpdate();
+  });
+  els.commandBannerEnabled?.addEventListener("change", () => {
+    commandBanner.enabled = Boolean(els.commandBannerEnabled.checked);
+    saveCommandBanner();
+    postDashboardUpdate();
+  });
+}
+
+function renderCommandPanel() {
+  if (!els.commandStatusList) return;
+  els.commandPeopleCount.textContent = String(assignmentPeople.length);
+  els.commandVehicleCount.textContent = String(resources.filter(resource => resource.type === "Vehicle").length);
+  els.commandAircraftCount.textContent = String(resources.filter(resource => resource.type === "Air").length);
+  els.commandStatusList.innerHTML = "";
+  IMT_POSITIONS.forEach(position => {
+    const personId = assignmentSlots[position] || "";
+    const person = assignmentPeople.find(item => item.id === personId);
+    if (!person) return;
+    const row = document.createElement("article");
+    row.className = "command-status-row";
+    const status = commandStatuses[position] || "Green";
+    row.innerHTML = `<div><strong>${escapeHtml(person.name)}</strong><p>${escapeHtml(position)}</p></div>`;
+    const select = document.createElement("select");
+    ["Green", "Yellow", "Red", "Black"].forEach(optionValue => {
+      const option = document.createElement("option");
+      option.value = optionValue;
+      option.textContent = optionValue;
+      option.selected = optionValue === status;
+      select.appendChild(option);
+    });
+    select.value = status;
+    select.addEventListener("change", event => {
+      commandStatuses[position] = event.target.value;
+      saveCommandStatuses();
+      postDashboardUpdate();
+    });
+    row.appendChild(select);
+    els.commandStatusList.appendChild(row);
+  });
+}
+
+function buildCommandSnapshot() {
+  const assignments = IMT_POSITIONS.map(position => {
+    const person = assignmentPeople.find(item => item.id === (assignmentSlots[position] || ""));
+    if (!person) return null;
+    return { position, name: person.name, capid: person.capid, status: commandStatuses[position] || "Green" };
+  }).filter(Boolean);
+  return {
+    assignments,
+    counts: {
+      people: assignmentPeople.length,
+      vehicles: resources.filter(resource => resource.type === "Vehicle").length,
+      aircraft: resources.filter(resource => resource.type === "Air").length
+    },
+    banner: { text: commandBanner.text || "", enabled: Boolean(commandBanner.enabled) }
+  };
+}
+
+function loadCommandStatuses() {
+  try { return JSON.parse(localStorage.getItem(COMMAND_STORAGE_KEY) || "{}"); } catch { return {}; }
+}
+function saveCommandStatuses() { localStorage.setItem(COMMAND_STORAGE_KEY, JSON.stringify(commandStatuses)); }
+function loadCommandBanner() {
+  try { return JSON.parse(localStorage.getItem(`${COMMAND_STORAGE_KEY}-banner`) || "{\"text\":\"\",\"enabled\":false}"); } catch { return { text: "", enabled: false }; }
+}
+function saveCommandBanner() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-banner`, JSON.stringify(commandBanner)); }
 
 
 function bindFieldNotesControls() {

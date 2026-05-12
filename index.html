@@ -27,7 +27,7 @@
   </div>
   <header class="site-header"><div class="container header-grid"><div><p class="eyebrow">Roman's Toolbox</p><h1>Crew Watch</h1><p class="lede">Track ground teams, sUAS teams, and air resources from one lightweight operations board. Place map icons for all resource types and drag them to reflect movement in real time. Air resources can also be opened in FlightAware or Flightradar24 by registration number.</p></div><div class="header-actions"><button id="copySummaryBtn" class="button secondary" type="button">Copy Summary</button><button id="exportBtn" class="button secondary" type="button">Export JSON</button><label class="button secondary file-button">Import JSON<input id="importInput" type="file" accept="application/json" /></label><button id="seedDemoDataBtn" class="button secondary" type="button">Load Demo Data</button><button id="openDashboardBtn" class="button secondary" type="button">Dashboard</button><button id="showDisclaimerBtn" class="button secondary" type="button">Disclaimer</button></div></div></header>
   <main class="container tool-shell">
-    <section class="panel tool-switcher" aria-label="Tool switcher"><div><h2>Tool Mode</h2><p>Switch between Ops Watch, Crew Staffing, Assignment Board, and Field Notes from one workspace.</p></div><div class="tool-tabs" role="tablist"><button class="tool-tab active" data-tool="opswatch" type="button" role="tab" aria-selected="true">Ops Watch</button><button class="tool-tab" data-tool="crewstaffing" type="button" role="tab" aria-selected="false">Crew Staffing</button><button class="tool-tab" data-tool="assignmentboard" type="button" role="tab" aria-selected="false">Assignment Board</button><button class="tool-tab" data-tool="fieldnotes" type="button" role="tab" aria-selected="false">Field Notes</button></div></section>
+    <section class="panel tool-switcher" aria-label="Tool switcher"><div><h2>Tool Mode</h2><p>Switch between Ops Watch, Crew Staffing, Assignment Board, and Field Notes from one workspace.</p></div><div class="tool-tabs" role="tablist"><button class="tool-tab active" data-tool="opswatch" type="button" role="tab" aria-selected="true">Ops Watch</button><button class="tool-tab" data-tool="crewstaffing" type="button" role="tab" aria-selected="false">Crew Staffing</button><button class="tool-tab" data-tool="assignmentboard" type="button" role="tab" aria-selected="false">Assignment Board</button><button class="tool-tab" data-tool="fieldnotes" type="button" role="tab" aria-selected="false">Field Notes</button><button class="tool-tab" data-tool="command" type="button" role="tab" aria-selected="false">Command</button></div></section>
 
     <section id="opswatchApp" class="main-grid tool-panel active" role="tabpanel">
     <section class="panel"><div class="panel-heading"><h2>Add Resource</h2><p>Use coordinates for map icons (Ground, sUAS, Air, and Vehicles). Air resources need a tail number, and vehicles need a vehicle number.</p></div><form id="resourceForm" class="resource-form"><label>Resource Type<select id="resourceType" required><option value="Ground">Ground</option><option value="sUAS">sUAS</option><option value="Air">Air</option><option value="Vehicle">Vehicle</option><option value="Incident Command Post">Incident Command Post</option><option value="Staging Area">Staging Area</option></select></label><label>Resource Name<input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required /></label><label>Crew<input id="resourceCrew" type="text" placeholder="Names or team assigned to this resource" /></label><div id="mapFields"><label>Map Label<input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" /></label><div class="two-column"><label>Latitude<input id="latitude" type="number" step="any" placeholder="29.7604" required /></label><label>Longitude<input id="longitude" type="number" step="any" placeholder="-95.3698" required /></label></div><button id="useLocationBtn" class="button secondary full-width" type="button">Use My Current Location</button></div><div id="airFields" class="hidden"><label>Tail Number / Registration<input id="tailNumber" type="text" placeholder="N12345" /></label></div><div id="vehicleFields" class="hidden"><label>Vehicle Number<input id="vehicleNumber" type="text" placeholder="Unit 42" /></label></div><label>Status<select id="status"><option>Available</option><option>Assigned</option><option>Enroute</option><option>Onscene</option><option>Offline</option></select></label><label>Notes<textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea></label><button class="button primary full-width" type="submit">Add Resource</button></form></section>
@@ -94,6 +94,31 @@
           </div>
         </div>
         <div id="fieldNotesList" class="resource-list"></div>
+      </section>
+    </section>
+
+    <section id="commandApp" class="panel tool-panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <div>
+          <h2>Command</h2>
+          <p>Track assignment-board staffing status and push a red dashboard banner.</p>
+        </div>
+      </div>
+      <div class="command-kpis">
+        <article class="command-kpi"><h3>People Signed In</h3><p id="commandPeopleCount">0</p></article>
+        <article class="command-kpi"><h3>Vehicles</h3><p id="commandVehicleCount">0</p></article>
+        <article class="command-kpi"><h3>Aircraft</h3><p id="commandAircraftCount">0</p></article>
+      </div>
+      <section class="panel">
+        <h3>Dashboard Red Banner</h3>
+        <div class="command-banner-controls">
+          <label>Banner Text<input id="commandBannerText" type="text" placeholder="Emergency traffic only. Report to mission base immediately." /></label>
+          <label class="command-banner-toggle"><input id="commandBannerEnabled" type="checkbox" /> Enable red scrolling banner</label>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="toolbar"><div><h3>Assignment Status</h3><p>Team position and person status from the Assignment Board.</p></div></div>
+        <div id="commandStatusList" class="command-status-list"></div>
       </section>
     </section>
   </main>
