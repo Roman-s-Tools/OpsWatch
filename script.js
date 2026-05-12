@@ -1,5 +1,6 @@
 const STORAGE_KEY = "romans-resource-tracker-v1";
 const RADII_STORAGE_KEY = "romans-resource-radii-v1";
+const WMIRS_DISCLAIMER_ACK_KEY = "romans-wmirs-disclaimer-ack-v1";
 const RESOURCE_STATUSES = ["Available", "Assigned", "Enroute", "Onscene", "Offline"];
 
 const TYPE_COLORS = {
@@ -87,6 +88,8 @@ const els = {
   crewExportBtn: document.getElementById("crewExportBtn"),
   crewImportInput: document.getElementById("crewImportInput"),
   crewClearBtn: document.getElementById("crewClearBtn"),
+  wmirsDisclaimerModal: document.getElementById("wmirsDisclaimerModal"),
+  wmirsDisclaimerAcknowledgeBtn: document.getElementById("wmirsDisclaimerAcknowledgeBtn"),
   fieldNotesPanel: document.getElementById("fieldNotesApp"),
   fieldNoteForm: document.getElementById("fieldNoteForm"),
   fieldNoteName: document.getElementById("fieldNoteName"),
@@ -97,6 +100,7 @@ const els = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  initWmirsDisclaimer();
   initMap();
   bindEvents();
   bindToolTabs();
@@ -108,6 +112,19 @@ document.addEventListener("DOMContentLoaded", () => {
   renderAssignmentBoard();
   renderFieldNotes();
 });
+
+function initWmirsDisclaimer() {
+  if (!els.wmirsDisclaimerModal || !els.wmirsDisclaimerAcknowledgeBtn) return;
+  const acknowledged = localStorage.getItem(WMIRS_DISCLAIMER_ACK_KEY) === "true";
+  if (acknowledged) return;
+  els.wmirsDisclaimerModal.classList.remove("hidden");
+  els.wmirsDisclaimerAcknowledgeBtn.addEventListener("click", acknowledgeWmirsDisclaimer, { once: true });
+}
+
+function acknowledgeWmirsDisclaimer() {
+  localStorage.setItem(WMIRS_DISCLAIMER_ACK_KEY, "true");
+  els.wmirsDisclaimerModal?.classList.add("hidden");
+}
 
 function bindCrewStaffingControls() {
   if (!els.crewStaffingFrame) return;
