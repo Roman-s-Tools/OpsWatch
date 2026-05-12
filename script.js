@@ -807,6 +807,7 @@ function normalizeResource(resource) {
 const CREW_STAFFING_STORAGE_KEY = "romans-assignment-roster-v1";
 const ASSIGNMENT_BOARD_STORAGE_KEY = "romans-assignment-board-v1";
 const FIELD_NOTES_STORAGE_KEY = "romans-field-notes-v1";
+const FIELD_NOTES_AUTHOR_STORAGE_KEY = "romans-field-notes-author-v1";
 const IMT_POSITIONS = [
   "Incident Commander",
   "Deputy Incident Commander",
@@ -974,6 +975,12 @@ function saveAssignmentBoard() {
 
 
 function bindFieldNotesControls() {
+  const author = loadFieldNoteAuthor();
+  if (author.name) els.fieldNoteName.value = author.name;
+  if (author.role) els.fieldNoteRole.value = author.role;
+
+  els.fieldNoteName?.addEventListener("input", saveFieldNoteAuthor);
+  els.fieldNoteRole?.addEventListener("input", saveFieldNoteAuthor);
   els.fieldNoteForm?.addEventListener("submit", addFieldNote);
 }
 
@@ -993,7 +1000,8 @@ function addFieldNote(event) {
   });
 
   saveFieldNotes();
-  els.fieldNoteForm.reset();
+  saveFieldNoteAuthor();
+  els.fieldNoteText.value = "";
   renderFieldNotes();
 }
 
@@ -1027,4 +1035,27 @@ function loadFieldNotes() {
 
 function saveFieldNotes() {
   localStorage.setItem(FIELD_NOTES_STORAGE_KEY, JSON.stringify(fieldNotes));
+}
+
+function loadFieldNoteAuthor() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FIELD_NOTES_AUTHOR_STORAGE_KEY) || "{}");
+    if (!saved || typeof saved !== "object") return { name: "", role: "" };
+    return {
+      name: String(saved.name || ""),
+      role: String(saved.role || "")
+    };
+  } catch {
+    return { name: "", role: "" };
+  }
+}
+
+function saveFieldNoteAuthor() {
+  localStorage.setItem(
+    FIELD_NOTES_AUTHOR_STORAGE_KEY,
+    JSON.stringify({
+      name: els.fieldNoteName?.value.trim() || "",
+      role: els.fieldNoteRole?.value.trim() || ""
+    })
+  );
 }
