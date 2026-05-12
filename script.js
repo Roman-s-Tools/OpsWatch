@@ -55,6 +55,7 @@ let draftCircle = null;
 let movingRadiusId = null;
 let movingRadiusOffset = null;
 let kmlLayer = null;
+let dashboardWindow = null;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -77,6 +78,7 @@ const els = {
   search: document.getElementById("searchInput"),
   exportBtn: document.getElementById("exportBtn"),
   importInput: document.getElementById("importInput"),
+  openDashboardBtn: document.getElementById("openDashboardBtn"),
   showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
   seedDemoDataBtn: document.getElementById("seedDemoDataBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
@@ -209,6 +211,7 @@ function bindEvents() {
   els.exportBtn.addEventListener("click", exportJson);
   els.importInput.addEventListener("change", importJson);
   els.showDisclaimerBtn?.addEventListener("click", showWmirsDisclaimer);
+  els.openDashboardBtn?.addEventListener("click", openDashboardWindow);
   els.seedDemoDataBtn?.addEventListener("click", seedDemoData);
   els.copySummaryBtn.addEventListener("click", copySummary);
   els.drawRadiusBtn.addEventListener("click", toggleRadiusMode);
@@ -824,6 +827,7 @@ function loadResources() {
 
 function saveResources() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
+  postDashboardUpdate();
 }
 
 function loadRadii() {
@@ -837,6 +841,113 @@ function loadRadii() {
 
 function saveRadii() {
   localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
+  postDashboardUpdate();
+}
+
+function getDashboardPayload() {
+  return {
+    resources: resources.map(normalizeResource),
+    radii: Array.isArray(radii) ? radii : [],
+    generatedAt: new Date().toISOString()
+  };
+}
+
+function postDashboardUpdate() {
+  if (!dashboardWindow || dashboardWindow.closed) return;
+  dashboardWindow.postMessage({ type: "opswatch:dashboard:update", payload: getDashboardPayload() }, window.location.origin);
+}
+
+function openDashboardWindow() {
+  if (dashboardWindow && !dashboardWindow.closed) {
+    dashboardWindow.focus();
+    postDashboardUpdate();
+    return;
+  }
+
+  dashboardWindow = window.open("", "opswatch-dashboard", "width=1400,height=850");
+  if (!dashboardWindow) return;
+
+  dashboardWindow.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ops Watch Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#f6f7fb;color:#111827}
+    .layout{display:grid;grid-template-columns:320px 1fr 320px;height:100vh;gap:12px;padding:12px}
+    .panel{background:#fff;border:1px solid #dfe4ec;border-radius:14px;padding:14px;overflow:auto}
+    #dashboardMap{height:calc(100vh - 52px);border-radius:12px}
+    h2{margin:0 0 8px;font-size:1.05rem}.muted{color:#6b7280;font-size:.9rem}
+    .resource{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-bottom:8px}
+    .badge{display:inline-block;background:#111827;color:#fff;border-radius:999px;padding:2px 8px;font-size:.75rem}
+    .status{font-weight:700}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="panel"><h2>Signed-In Resources</h2><p class="muted" id="resourceCount">0 resources</p><div id="resourceList"></div></section>
+    <section class="panel"><h2>Ops Watch Map</h2><div id="dashboardMap"></div></section>
+    <section class="panel"><h2>Placeholder</h2><p class="muted">Reserved for your next feature.</p></section>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const TYPE_COLORS = ${JSON.stringify(TYPE_COLORS)};
+    const map = L.map("dashboardMap").setView([29.7604, -95.3698], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+    const markersLayer = L.layerGroup().addTo(map);
+    const radiiLayer = L.layerGroup().addTo(map);
+    let latestPayload = { resources: [], radii: [] };
+
+    function render(payload) {
+      latestPayload = payload || latestPayload;
+      const resources = Array.isArray(latestPayload.resources) ? latestPayload.resources : [];
+      const radii = Array.isArray(latestPayload.radii) ? latestPayload.radii : [];
+      const list = document.getElementById("resourceList");
+      const count = document.getElementById("resourceCount");
+      list.innerHTML = "";
+      count.textContent = resources.length + " resources";
+
+      resources.forEach(resource => {
+        const card = document.createElement("article");
+        card.className = "resource";
+        card.innerHTML = "<div><span class='badge'>" + (resource.type || "Unknown") + "</span> <span class='status'>" + (resource.status || "Unknown") + "</span></div><strong>" + (resource.name || "Unnamed Resource") + "</strong><div class='muted'>" + (resource.label || "") + "</div>";
+        list.appendChild(card);
+      });
+
+      markersLayer.clearLayers();
+      radiiLayer.clearLayers();
+      const bounds = [];
+
+      resources.forEach(resource => {
+        const lat = Number(resource.lat);
+        const lng = Number(resource.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const marker = L.marker([lat, lng], { icon: L.divIcon({ className:"", html: "<span style='display:block;width:14px;height:14px;border-radius:999px;background:" + (TYPE_COLORS[resource.type] || "#334155") + ";border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);'></span>", iconSize:[18,18], iconAnchor:[9,9] }) });
+        marker.bindPopup("<strong>" + (resource.name || "Resource") + "</strong><br>" + (resource.status || ""));
+        marker.addTo(markersLayer);
+        bounds.push([lat, lng]);
+      });
+
+      radii.forEach(item => {
+        if (!item || !item.center) return;
+        L.circle([Number(item.center.lat), Number(item.center.lng)], { radius: Number(item.radiusMeters || 0), color: TYPE_COLORS[item.type] || TYPE_COLORS.Ground || "#2563eb", weight: 2, fillOpacity: 0.08 }).addTo(radiiLayer);
+      });
+
+      if (bounds.length) map.fitBounds(bounds, { padding:[20,20], maxZoom:14 });
+      setTimeout(() => map.invalidateSize(), 60);
+    }
+
+    window.addEventListener("message", event => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data && event.data.type === "opswatch:dashboard:update") render(event.data.payload);
+    });
+  </script>
+</body>
+</html>`);
+  dashboardWindow.document.close();
+  setTimeout(postDashboardUpdate, 150);
 }
 
 function slug(value) {
