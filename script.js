@@ -78,14 +78,45 @@ const els = {
   drawRadiusBtn: document.getElementById("drawRadiusBtn"),
   clearRadiiBtn: document.getElementById("clearRadiiBtn"),
   kmlInput: document.getElementById("kmlInput"),
-  clearKmlBtn: document.getElementById("clearKmlBtn")
+  clearKmlBtn: document.getElementById("clearKmlBtn"),
+  toolTabs: Array.from(document.querySelectorAll(".tool-tab")),
+  opswatchPanel: document.getElementById("opswatchApp"),
+  crewStaffingPanel: document.getElementById("crewstaffingApp")
 };
 
 document.addEventListener("DOMContentLoaded", () => {
   initMap();
   bindEvents();
+  bindToolTabs();
   render();
 });
+
+
+function bindToolTabs() {
+  if (!els.toolTabs.length) return;
+
+  els.toolTabs.forEach(button => {
+    button.addEventListener("click", () => setActiveTool(button.dataset.tool));
+  });
+}
+
+function setActiveTool(tool) {
+  const opswatchActive = tool === "opswatch";
+  els.opswatchPanel.classList.toggle("active", opswatchActive);
+  els.crewStaffingPanel.classList.toggle("active", !opswatchActive);
+  els.opswatchPanel.hidden = !opswatchActive;
+  els.crewStaffingPanel.hidden = opswatchActive;
+
+  els.toolTabs.forEach(button => {
+    const active = button.dataset.tool === tool;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+
+  if (opswatchActive && map) {
+    setTimeout(() => map.invalidateSize(), 50);
+  }
+}
 
 function bindEvents() {
   els.type.addEventListener("change", toggleResourceFields);

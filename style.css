@@ -439,3 +439,55 @@ textarea:focus {
     padding-top: 64px;
   }
 }
+
+.tool-shell {
+  display: grid;
+  gap: 22px;
+}
+
+.tool-switcher {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+}
+
+.tool-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tool-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 16px;
+  font-weight: 750;
+  background: #fff;
+}
+
+.tool-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.tool-panel:not(.active) {
+  display: none;
+}
+
+.tool-panel-lede {
+  color: var(--muted);
+}
+
+#crewStaffingFrame {
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
