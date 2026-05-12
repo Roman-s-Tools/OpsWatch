@@ -94,7 +94,10 @@ document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
   bindToolTabs();
   bindCrewStaffingControls();
+  bindAssignmentBoardControls();
+  loadAssignmentPeople();
   render();
+  renderAssignmentBoard();
 });
 
 function bindCrewStaffingControls() {
@@ -131,10 +134,14 @@ function bindToolTabs() {
 
 function setActiveTool(tool) {
   const opswatchActive = tool === "opswatch";
+  const crewStaffingActive = tool === "crewstaffing";
+  const assignmentBoardActive = tool === "assignmentboard";
   els.opswatchPanel.classList.toggle("active", opswatchActive);
-  els.crewStaffingPanel.classList.toggle("active", !opswatchActive);
+  els.crewStaffingPanel.classList.toggle("active", crewStaffingActive);
+  els.assignmentBoardPanel.classList.toggle("active", assignmentBoardActive);
   els.opswatchPanel.hidden = !opswatchActive;
-  els.crewStaffingPanel.hidden = opswatchActive;
+  els.crewStaffingPanel.hidden = !crewStaffingActive;
+  els.assignmentBoardPanel.hidden = !assignmentBoardActive;
 
   els.toolTabs.forEach(button => {
     const active = button.dataset.tool === tool;
@@ -758,4 +765,130 @@ function normalizeResource(resource) {
     tail: resource.tail || "",
     vehicleNumber: resource.vehicleNumber || ""
   };
+}
+
+const CREW_STAFFING_STORAGE_KEY = "romans-assignment-roster-v1";
+const ASSIGNMENT_BOARD_STORAGE_KEY = "romans-assignment-board-v1";
+const IMT_POSITIONS = [
+  "Incident Commander",
+  "Deputy Incident Commander",
+  "Safety Officer",
+  "Public Information Officer",
+  "Liaison Officer",
+  "Operations Section Chief",
+  "Planning Section Chief",
+  "Logistics Section Chief",
+  "Finance/Admin Section Chief",
+  "Air Operations Branch Director",
+  "Ground Branch Director",
+  "Communications Unit Leader",
+  "Medical Unit Leader",
+  "Situation Unit Leader",
+  "Resource Unit Leader"
+];
+
+let assignmentPeople = [];
+let assignmentSlots = loadAssignmentBoard();
+
+Object.assign(els, {
+  assignmentBoardPanel: document.getElementById("assignmentBoardApp"),
+  assignmentRoster: document.getElementById("assignmentRoster"),
+  assignmentGrid: document.getElementById("assignmentGrid"),
+  assignmentReloadBtn: document.getElementById("assignmentReloadBtn"),
+  assignmentClearBtn: document.getElementById("assignmentClearBtn")
+});
+
+
+
+function bindAssignmentBoardControls() {
+  els.assignmentReloadBtn?.addEventListener("click", () => {
+    loadAssignmentPeople();
+    renderAssignmentBoard();
+  });
+  els.assignmentClearBtn?.addEventListener("click", () => {
+    assignmentSlots = {};
+    saveAssignmentBoard();
+    renderAssignmentBoard();
+  });
+}
+
+function loadAssignmentPeople() {
+  try {
+    const payload = JSON.parse(localStorage.getItem(CREW_STAFFING_STORAGE_KEY) || "[]");
+    assignmentPeople = Array.isArray(payload)
+      ? payload.map(person => ({
+          id: String(person.id || crypto.randomUUID()),
+          name: String(person.name || "Unnamed Person"),
+          capid: String(person.capid || "Unknown")
+        }))
+      : [];
+  } catch {
+    assignmentPeople = [];
+  }
+}
+
+function renderAssignmentBoard() {
+  if (!els.assignmentRoster || !els.assignmentGrid) return;
+  els.assignmentRoster.innerHTML = "";
+  els.assignmentGrid.innerHTML = "";
+
+  assignmentPeople.forEach(person => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "assignment-person";
+    item.draggable = true;
+    item.dataset.personId = person.id;
+    item.innerHTML = `<strong>${escapeHtml(person.name)}</strong><span>CAPID: ${escapeHtml(person.capid)}</span>`;
+    item.addEventListener("dragstart", event => {
+      event.dataTransfer?.setData("text/person-id", person.id);
+    });
+    els.assignmentRoster.appendChild(item);
+  });
+
+  IMT_POSITIONS.forEach(position => {
+    const slot = document.createElement("div");
+    slot.className = "assignment-slot";
+    slot.dataset.position = position;
+
+    const assignedId = assignmentSlots[position] || "";
+    const match = assignmentPeople.find(person => person.id === assignedId);
+
+    slot.innerHTML = `<p class="assignment-slot-title">${escapeHtml(position)}</p><div class="assignment-slot-fill">${match ? `<strong>${escapeHtml(match.name)}</strong><span>CAPID: ${escapeHtml(match.capid)}</span>` : "Drop person here"}</div><button type="button" class="button secondary assignment-remove">Clear</button>`;
+
+    slot.addEventListener("dragover", event => {
+      event.preventDefault();
+      slot.classList.add("drag-over");
+    });
+    slot.addEventListener("dragleave", () => slot.classList.remove("drag-over"));
+    slot.addEventListener("drop", event => {
+      event.preventDefault();
+      slot.classList.remove("drag-over");
+      const personId = event.dataTransfer?.getData("text/person-id");
+      if (!personId) return;
+      assignmentSlots[position] = personId;
+      saveAssignmentBoard();
+      renderAssignmentBoard();
+    });
+
+    slot.querySelector(".assignment-remove")?.addEventListener("click", () => {
+      delete assignmentSlots[position];
+      saveAssignmentBoard();
+      renderAssignmentBoard();
+    });
+
+    els.assignmentGrid.appendChild(slot);
+  });
+}
+
+function loadAssignmentBoard() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ASSIGNMENT_BOARD_STORAGE_KEY) || "{}");
+    return saved && typeof saved === "object" ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAssignmentBoard() {
+  localStorage.setItem(ASSIGNMENT_BOARD_STORAGE_KEY, JSON.stringify(assignmentSlots));
 }
