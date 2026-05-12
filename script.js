@@ -81,6 +81,7 @@ const els = {
   openDashboardBtn: document.getElementById("openDashboardBtn"),
   showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
   seedDemoDataBtn: document.getElementById("seedDemoDataBtn"),
+  clearResourcesPeopleBtn: document.getElementById("clearResourcesPeopleBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
   drawRadiusBtn: document.getElementById("drawRadiusBtn"),
   clearRadiiBtn: document.getElementById("clearRadiiBtn"),
@@ -218,6 +219,7 @@ function bindEvents() {
   els.showDisclaimerBtn?.addEventListener("click", showWmirsDisclaimer);
   els.openDashboardBtn?.addEventListener("click", openDashboardWindow);
   els.seedDemoDataBtn?.addEventListener("click", seedDemoData);
+  els.clearResourcesPeopleBtn?.addEventListener("click", clearResourcesAndPeople);
   els.copySummaryBtn.addEventListener("click", copySummary);
   els.drawRadiusBtn.addEventListener("click", toggleRadiusMode);
   els.clearRadiiBtn.addEventListener("click", clearRadii);
@@ -282,6 +284,25 @@ function seedDemoData() {
   sendCrewStaffingMessage({ type: "crewstaffing:import", text: JSON.stringify({ incident: demoIncident, people: demoPeople }) });
 
   alert("Placeholder demo content has been added for review. Replace or clear this data before operational use.");
+}
+
+function clearResourcesAndPeople() {
+  const confirmed = window.confirm("Clear all resources and people? This removes Ops Watch resources, signed-in personnel, and assignment slots.");
+  if (!confirmed) return;
+
+  resources = [];
+  saveResources();
+
+  assignmentPeople = [];
+  assignmentSlots = {};
+  localStorage.setItem(CREW_STAFFING_STORAGE_KEY, JSON.stringify(assignmentPeople));
+  saveAssignmentBoard();
+
+  sendCrewStaffingMessage({ type: "crewstaffing:clear" });
+  render();
+  renderAssignmentBoard();
+  renderCommandPanel();
+  alert("All resources and people have been cleared.");
 }
 
 function initMap() {
