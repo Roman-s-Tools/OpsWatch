@@ -503,16 +503,22 @@ function createColorMarker(type) {
   const color = TYPE_COLORS[type] || "#334155";
   const isAirResource = type === "Air";
   const isVehicleResource = type === "Vehicle";
+  const isIncidentCommandPost = type === "Incident Command Post";
+  const isStagingArea = type === "Staging Area";
   const markerHtml = isAirResource
     ? `<span style="display:grid;place-items:center;width:24px;height:24px;color:${color};font-size:22px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">✈</span>`
     : isVehicleResource
       ? `<span style="display:grid;place-items:center;width:22px;height:22px;color:${color};font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">🚗</span>`
-      : `<span style="display:block;width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`;
+      : isIncidentCommandPost
+        ? `<span style="display:grid;place-items:center;width:22px;height:22px;color:${color};font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">🚩</span>`
+        : isStagingArea
+          ? `<span style="display:grid;place-items:center;width:22px;height:22px;color:${color};font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">🏢</span>`
+          : `<span style="display:block;width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`;
   return L.divIcon({
     className: "resource-pin-wrapper",
     html: markerHtml,
-    iconSize: isAirResource ? [24, 24] : isVehicleResource ? [22, 22] : [18, 18],
-    iconAnchor: isAirResource ? [12, 12] : isVehicleResource ? [11, 11] : [9, 9],
+    iconSize: isAirResource ? [24, 24] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [22, 22] : [18, 18],
+    iconAnchor: isAirResource ? [12, 12] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [11, 11] : [9, 9],
     popupAnchor: [0, -10]
   });
 }
@@ -1002,13 +1008,19 @@ function openDashboardWindow() {
         const color = TYPE_COLORS[type] || "#334155";
         const isAirResource = type === "Air";
         const isVehicleResource = type === "Vehicle";
+        const isIncidentCommandPost = type === "Incident Command Post";
+        const isStagingArea = type === "Staging Area";
         const markerHtml = isAirResource
           ? "<span style='display:grid;place-items:center;width:24px;height:24px;color:" + color + ";font-size:22px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>✈</span>"
           : isVehicleResource
             ? "<span style='display:grid;place-items:center;width:22px;height:22px;color:" + color + ";font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>🚗</span>"
-            : "<span style='display:block;width:14px;height:14px;border-radius:999px;background:" + color + ";border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);'></span>";
-        const iconSize = isAirResource ? [24, 24] : isVehicleResource ? [22, 22] : [18, 18];
-        const iconAnchor = isAirResource ? [12, 12] : isVehicleResource ? [11, 11] : [9, 9];
+            : isIncidentCommandPost
+              ? "<span style='display:grid;place-items:center;width:22px;height:22px;color:" + color + ";font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>🚩</span>"
+              : isStagingArea
+                ? "<span style='display:grid;place-items:center;width:22px;height:22px;color:" + color + ";font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>🏢</span>"
+                : "<span style='display:block;width:14px;height:14px;border-radius:999px;background:" + color + ";border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);'></span>";
+        const iconSize = isAirResource ? [24, 24] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [22, 22] : [18, 18];
+        const iconAnchor = isAirResource ? [12, 12] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [11, 11] : [9, 9];
         return L.divIcon({ className: "", html: markerHtml, iconSize, iconAnchor });
       };
 
