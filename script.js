@@ -157,6 +157,13 @@ function bindCrewStaffingControls() {
     };
     reader.readAsText(file);
   });
+  window.addEventListener("message", event => {
+    if (event.origin !== window.location.origin || !event.data || typeof event.data !== "object") return;
+    if (event.data.type !== "crewstaffing:state:update") return;
+    loadAssignmentPeople();
+    renderAssignmentBoard();
+    publishLiveState();
+  });
 }
 
 function sendCrewStaffingMessage(message) {
@@ -261,6 +268,9 @@ function applyLiveState(payload) {
   if (Array.isArray(payload.resources)) resources = payload.resources.map(normalizeResource);
   if (Array.isArray(payload.radii)) radii = payload.radii;
   if (Array.isArray(payload.assignmentPeople)) assignmentPeople = payload.assignmentPeople;
+  if (payload.crewStaffingIncident && typeof payload.crewStaffingIncident === "object") {
+    localStorage.setItem(CREW_STAFFING_INCIDENT_STORAGE_KEY, JSON.stringify(payload.crewStaffingIncident));
+  }
   if (payload.assignmentSlots && typeof payload.assignmentSlots === "object") assignmentSlots = payload.assignmentSlots;
   if (Array.isArray(payload.fieldNotes)) fieldNotes = payload.fieldNotes;
   if (payload.commandStatuses && typeof payload.commandStatuses === "object") commandStatuses = payload.commandStatuses;
@@ -287,6 +297,7 @@ function publishLiveState() {
     resources,
     radii,
     assignmentPeople,
+    crewStaffingIncident: loadCrewStaffingIncident(),
     assignmentSlots,
     fieldNotes,
     commandStatuses,
@@ -1166,6 +1177,7 @@ function normalizeResource(resource) {
 }
 
 const CREW_STAFFING_STORAGE_KEY = "romans-assignment-roster-v1";
+const CREW_STAFFING_INCIDENT_STORAGE_KEY = "romans-assignment-roster-incident-v1";
 const ASSIGNMENT_BOARD_STORAGE_KEY = "romans-assignment-board-v1";
 const FIELD_NOTES_STORAGE_KEY = "romans-field-notes-v1";
 const FIELD_NOTES_AUTHOR_STORAGE_KEY = "romans-field-notes-author-v1";
@@ -1279,6 +1291,15 @@ function loadAssignmentPeople() {
       : [];
   } catch {
     assignmentPeople = [];
+  }
+}
+
+function loadCrewStaffingIncident() {
+  try {
+    const payload = JSON.parse(localStorage.getItem(CREW_STAFFING_INCIDENT_STORAGE_KEY) || "{}");
+    return payload && typeof payload === "object" ? payload : {};
+  } catch {
+    return {};
   }
 }
 
