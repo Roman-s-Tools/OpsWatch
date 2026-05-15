@@ -139,6 +139,7 @@ function saveIncidentFromForm() {
     preparedAt: els.preparedAt.value.trim()
   };
   localStorage.setItem(INCIDENT_KEY, JSON.stringify(incident));
+  notifyParentStateChanged();
   renderIcsView();
 }
 
@@ -453,6 +454,7 @@ function loadPeople() {
 
 function savePeople() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(people));
+  notifyParentStateChanged();
 }
 
 function loadIncident() {
@@ -473,4 +475,9 @@ function slug(value) {
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+}
+
+function notifyParentStateChanged() {
+  if (window.parent === window) return;
+  window.parent.postMessage({ type: "crewstaffing:state:update" }, window.location.origin);
 }
