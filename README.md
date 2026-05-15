@@ -106,3 +106,4 @@ Then browse to `http://localhost:8080`.
 ## Notes
 - This tool supplements WMIRS workflows and does not replace WMIRS as system of record.
 - Aircraft visibility depends on external public tracking source availability.
+- Shareable link functionality is currently in development.
