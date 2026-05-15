@@ -56,6 +56,9 @@ let movingRadiusId = null;
 let movingRadiusOffset = null;
 let kmlLayer = null;
 let dashboardWindow = null;
+let liveSyncProvider = null;
+let liveSyncMap = null;
+let applyingLiveSync = false;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -79,6 +82,7 @@ const els = {
   exportBtn: document.getElementById("exportBtn"),
   importInput: document.getElementById("importInput"),
   openDashboardBtn: document.getElementById("openDashboardBtn"),
+  shareLiveBtn: document.getElementById("shareLiveBtn"),
   showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
   seedDemoDataBtn: document.getElementById("seedDemoDataBtn"),
   clearResourcesPeopleBtn: document.getElementById("clearResourcesPeopleBtn"),
@@ -108,6 +112,7 @@ const els = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  initLiveSync();
   initWmirsDisclaimer();
   initMap();
   bindEvents();
@@ -218,6 +223,7 @@ function bindEvents() {
   els.importInput.addEventListener("change", importJson);
   els.showDisclaimerBtn?.addEventListener("click", showWmirsDisclaimer);
   els.openDashboardBtn?.addEventListener("click", openDashboardWindow);
+  els.shareLiveBtn?.addEventListener("click", shareLiveLink);
   els.seedDemoDataBtn?.addEventListener("click", seedDemoData);
   els.clearResourcesPeopleBtn?.addEventListener("click", clearResourcesAndPeople);
   els.copySummaryBtn.addEventListener("click", copySummary);
@@ -225,6 +231,80 @@ function bindEvents() {
   els.clearRadiiBtn.addEventListener("click", clearRadii);
   els.kmlInput.addEventListener("change", importKml);
   els.clearKmlBtn.addEventListener("click", clearKml);
+}
+
+function initLiveSync() {
+  if (!window.Y || !window.WebrtcProvider) return;
+  const url = new URL(window.location.href);
+  const existingSession = url.searchParams.get("live");
+  if (!existingSession) return;
+  const roomId = `opswatch-${existingSession}`;
+  const ydoc = new window.Y.Doc();
+  liveSyncMap = ydoc.getMap("opswatch-state");
+  liveSyncProvider = new window.WebrtcProvider(roomId, ydoc);
+  liveSyncMap.observe(() => {
+    const payload = liveSyncMap.get("payload");
+    if (!payload || typeof payload !== "object") return;
+    applyingLiveSync = true;
+    applyLiveState(payload);
+    applyingLiveSync = false;
+  });
+  publishLiveState();
+}
+
+function applyLiveState(payload) {
+  if (Array.isArray(payload.resources)) resources = payload.resources.map(normalizeResource);
+  if (Array.isArray(payload.radii)) radii = payload.radii;
+  if (Array.isArray(payload.assignmentPeople)) assignmentPeople = payload.assignmentPeople;
+  if (payload.assignmentSlots && typeof payload.assignmentSlots === "object") assignmentSlots = payload.assignmentSlots;
+  if (Array.isArray(payload.fieldNotes)) fieldNotes = payload.fieldNotes;
+  if (payload.commandStatuses && typeof payload.commandStatuses === "object") commandStatuses = payload.commandStatuses;
+  if (payload.commandBanner && typeof payload.commandBanner === "object") commandBanner = payload.commandBanner;
+  if (payload.commandObjectives && typeof payload.commandObjectives === "object") commandObjectives = payload.commandObjectives;
+
+  saveResources();
+  saveRadii();
+  localStorage.setItem(CREW_STAFFING_STORAGE_KEY, JSON.stringify(assignmentPeople));
+  saveAssignmentBoard();
+  localStorage.setItem(FIELD_NOTES_STORAGE_KEY, JSON.stringify(fieldNotes));
+  saveCommandStatuses();
+  saveCommandBanner();
+  saveCommandObjectives();
+  render();
+  renderAssignmentBoard();
+  renderFieldNotes();
+  renderCommandPanel();
+}
+
+function publishLiveState() {
+  if (!liveSyncMap || applyingLiveSync) return;
+  liveSyncMap.set("payload", {
+    resources,
+    radii,
+    assignmentPeople,
+    assignmentSlots,
+    fieldNotes,
+    commandStatuses,
+    commandBanner,
+    commandObjectives,
+    updatedAt: Date.now()
+  });
+}
+
+async function shareLiveLink() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.get("live")) {
+    url.searchParams.set("live", crypto.randomUUID().slice(0, 8));
+    window.history.replaceState({}, "", url.toString());
+    initLiveSync();
+  }
+  const shareUrl = url.toString();
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    alert("Live link copied. Anyone with this link can view live updates.");
+  } catch {
+    window.prompt("Copy this live link:", shareUrl);
+  }
 }
 
 function showWmirsDisclaimer() {
@@ -868,6 +948,7 @@ function loadResources() {
 function saveResources() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
   postDashboardUpdate();
+  publishLiveState();
 }
 
 function loadRadii() {
@@ -882,6 +963,7 @@ function loadRadii() {
 function saveRadii() {
   localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
   postDashboardUpdate();
+  publishLiveState();
 }
 
 function getDashboardPayload() {
@@ -1262,6 +1344,7 @@ function loadAssignmentBoard() {
 function saveAssignmentBoard() {
   localStorage.setItem(ASSIGNMENT_BOARD_STORAGE_KEY, JSON.stringify(assignmentSlots));
   postDashboardUpdate();
+  publishLiveState();
 }
 
 function bindCommandControls() {
@@ -1349,16 +1432,16 @@ function buildCommandSnapshot() {
 function loadCommandStatuses() {
   try { return JSON.parse(localStorage.getItem(COMMAND_STORAGE_KEY) || "{}"); } catch { return {}; }
 }
-function saveCommandStatuses() { localStorage.setItem(COMMAND_STORAGE_KEY, JSON.stringify(commandStatuses)); }
+function saveCommandStatuses() { localStorage.setItem(COMMAND_STORAGE_KEY, JSON.stringify(commandStatuses)); publishLiveState(); }
 function loadCommandBanner() {
   try { return JSON.parse(localStorage.getItem(`${COMMAND_STORAGE_KEY}-banner`) || "{\"text\":\"\",\"enabled\":false}"); } catch { return { text: "", enabled: false }; }
 }
-function saveCommandBanner() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-banner`, JSON.stringify(commandBanner)); }
+function saveCommandBanner() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-banner`, JSON.stringify(commandBanner)); publishLiveState(); }
 function loadCommandObjectives() {
   try { return JSON.parse(localStorage.getItem(`${COMMAND_STORAGE_KEY}-objectives`) || "{\"primary\":\"\",\"secondary\":\"\",\"tertiary\":\"\"}"); }
   catch { return { primary: "", secondary: "", tertiary: "" }; }
 }
-function saveCommandObjectives() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-objectives`, JSON.stringify(commandObjectives)); }
+function saveCommandObjectives() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-objectives`, JSON.stringify(commandObjectives)); publishLiveState(); }
 
 
 function bindFieldNotesControls() {
@@ -1450,6 +1533,7 @@ function loadFieldNotes() {
 
 function saveFieldNotes() {
   localStorage.setItem(FIELD_NOTES_STORAGE_KEY, JSON.stringify(fieldNotes));
+  publishLiveState();
 }
 
 function loadFieldNoteAuthor() {
