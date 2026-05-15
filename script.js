@@ -59,6 +59,7 @@ let dashboardWindow = null;
 let liveSyncProvider = null;
 let liveSyncMap = null;
 let applyingLiveSync = false;
+let receivedRemoteLiveState = false;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -235,6 +236,7 @@ function bindEvents() {
 
 function initLiveSync() {
   if (!window.Y || !window.WebrtcProvider) return;
+  if (liveSyncProvider) return;
   const url = new URL(window.location.href);
   const existingSession = url.searchParams.get("live");
   if (!existingSession) return;
@@ -245,11 +247,14 @@ function initLiveSync() {
   liveSyncMap.observe(() => {
     const payload = liveSyncMap.get("payload");
     if (!payload || typeof payload !== "object") return;
+    receivedRemoteLiveState = true;
     applyingLiveSync = true;
     applyLiveState(payload);
     applyingLiveSync = false;
   });
-  publishLiveState();
+  window.setTimeout(() => {
+    if (!receivedRemoteLiveState) publishLiveState();
+  }, 1200);
 }
 
 function applyLiveState(payload) {
@@ -262,14 +267,14 @@ function applyLiveState(payload) {
   if (payload.commandBanner && typeof payload.commandBanner === "object") commandBanner = payload.commandBanner;
   if (payload.commandObjectives && typeof payload.commandObjectives === "object") commandObjectives = payload.commandObjectives;
 
-  saveResources();
-  saveRadii();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
+  localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
   localStorage.setItem(CREW_STAFFING_STORAGE_KEY, JSON.stringify(assignmentPeople));
-  saveAssignmentBoard();
+  localStorage.setItem(ASSIGNMENT_BOARD_STORAGE_KEY, JSON.stringify(assignmentSlots));
   localStorage.setItem(FIELD_NOTES_STORAGE_KEY, JSON.stringify(fieldNotes));
-  saveCommandStatuses();
-  saveCommandBanner();
-  saveCommandObjectives();
+  localStorage.setItem(COMMAND_STORAGE_KEY, JSON.stringify(commandStatuses));
+  localStorage.setItem(`${COMMAND_STORAGE_KEY}-banner`, JSON.stringify(commandBanner));
+  localStorage.setItem(`${COMMAND_STORAGE_KEY}-objectives`, JSON.stringify(commandObjectives));
   render();
   renderAssignmentBoard();
   renderFieldNotes();
@@ -298,6 +303,7 @@ async function shareLiveLink() {
     window.history.replaceState({}, "", url.toString());
     initLiveSync();
   }
+  publishLiveState();
   const shareUrl = url.toString();
   try {
     await navigator.clipboard.writeText(shareUrl);
