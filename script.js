@@ -55,6 +55,7 @@ let draftCircle = null;
 let movingRadiusId = null;
 let movingRadiusOffset = null;
 let kmlLayer = null;
+let lastBoundsKey = null;
 let dashboardWindow = null;
 let liveSyncProvider = null;
 let liveSyncMap = null;
@@ -468,13 +469,9 @@ function addResource(event) {
 function render() {
   const visible = getVisibleResources();
   renderList(visible);
-  queueMapRender(visible);
+  renderMap(visible);
   els.count.textContent = `${visible.length} visible of ${resources.length} total`;
   renderCommandPanel();
-}
-
-function queueMapRender(visible) {
-  renderMap(visible);
 }
 
 function getVisibleResources() {
@@ -593,7 +590,13 @@ function renderMap(visible) {
     bounds.push([Number(resource.lat), Number(resource.lng)]);
   });
 
-  map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+  // Only re-fit the view when the plotted coordinates actually change, so
+  // status edits, searches, and other re-renders don't yank the map around.
+  const boundsKey = bounds.map(point => point.join(",")).sort().join("|");
+  if (boundsKey !== lastBoundsKey) {
+    map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+    lastBoundsKey = boundsKey;
+  }
 }
 
 function createColorMarker(type) {
@@ -795,7 +798,7 @@ function importJson(event) {
       const imported = JSON.parse(String(reader.result));
       if (!Array.isArray(imported)) throw new Error("Import must be an array.");
 
-      resources = imported.map(resource => ({
+      resources = imported.map(resource => normalizeResource({
         id: resource.id || crypto.randomUUID(),
         type: resource.type || "Ground",
         name: resource.name || "Unnamed Resource",
@@ -805,7 +808,8 @@ function importJson(event) {
         lng: resource.lng ?? "",
         notes: resource.notes || "",
         crew: resource.crew || "",
-        tail: resource.tail || ""
+        tail: resource.tail || "",
+        vehicleNumber: resource.vehicleNumber || ""
       }));
 
       saveResources();
@@ -822,11 +826,16 @@ function importJson(event) {
 
 function copySummary() {
   const summary = resources.map(resource => {
+    const crew = resource.crew || "No crew";
+    const notes = resource.notes || "No notes";
     if (resource.type === "Air") {
-      return `${resource.type}: ${resource.name} (${resource.tail}) - Crew: ${resource.crew || "No crew"} - ${resource.status} - ${resource.notes || "No notes"}`;
+      return `${resource.type}: ${resource.name} (${resource.tail}) - Crew: ${crew} - ${resource.status} - ${notes}`;
+    }
+    if (resource.type === "Vehicle") {
+      return `${resource.type}: ${resource.name} [${resource.vehicleNumber || "No unit #"}] - Crew: ${crew} - ${resource.status} - ${resource.lat}, ${resource.lng} - ${notes}`;
     }
 
-    return `${resource.type}: ${resource.name} [${resource.label}] - Crew: ${resource.crew || "No crew"} - ${resource.status} - ${resource.lat}, ${resource.lng} - ${resource.notes || "No notes"}`;
+    return `${resource.type}: ${resource.name} [${resource.label}] - Crew: ${crew} - ${resource.status} - ${resource.lat}, ${resource.lng} - ${notes}`;
   }).join("\n");
 
   navigator.clipboard.writeText(summary).then(
@@ -1046,6 +1055,7 @@ function openDashboardWindow() {
   <script>
     const TYPE_COLORS = ${JSON.stringify(TYPE_COLORS)};
     const COMMAND_STATUS_CLASS = { Green: "status-green", Yellow: "status-yellow", Red: "status-red", Black: "status-black" };
+    const esc = value => String(value == null ? "" : value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
     const map = L.map("dashboardMap").setView([29.7604, -95.3698], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
     const markersLayer = L.layerGroup().addTo(map);
@@ -1075,7 +1085,7 @@ function openDashboardWindow() {
         if (!value) return;
         const block = document.createElement("article");
         block.className = "objective-item";
-        block.innerHTML = "<strong>" + label + "</strong><div class='muted'>" + value + "</div>";
+        block.innerHTML = "<strong>" + esc(label) + "</strong><div class='muted'>" + esc(value) + "</div>";
         objectiveList.appendChild(block);
       });
       if (!objectiveList.children.length) {
@@ -1087,7 +1097,7 @@ function openDashboardWindow() {
       resources.forEach(resource => {
         const card = document.createElement("article");
         card.className = "resource";
-        card.innerHTML = "<div><span class='badge'>" + (resource.type || "Unknown") + "</span> <span class='status'>" + (resource.status || "Unknown") + "</span></div><strong>" + (resource.name || "Unnamed Resource") + "</strong><div class='muted'>" + (resource.label || "") + "</div>";
+        card.innerHTML = "<div><span class='badge'>" + esc(resource.type || "Unknown") + "</span> <span class='status'>" + esc(resource.status || "Unknown") + "</span></div><strong>" + esc(resource.name || "Unnamed Resource") + "</strong><div class='muted'>" + esc(resource.label || "") + "</div>";
         list.appendChild(card);
       });
       (command.assignments || []).forEach(item => {
@@ -1095,7 +1105,7 @@ function openDashboardWindow() {
         card.className = "resource";
         const statusLabel = item.status || "Green";
         const statusClass = COMMAND_STATUS_CLASS[statusLabel] || "status-green";
-        card.innerHTML = "<div><span class='badge " + statusClass + "'>" + statusLabel + "</span></div><strong>" + (item.name || "Unassigned") + "</strong><div class='muted'>" + (item.position || "") + "</div>";
+        card.innerHTML = "<div><span class='badge " + statusClass + "'>" + esc(statusLabel) + "</span></div><strong>" + esc(item.name || "Unassigned") + "</strong><div class='muted'>" + esc(item.position || "") + "</div>";
         commandAssignments.appendChild(card);
       });
 
@@ -1128,7 +1138,7 @@ function openDashboardWindow() {
         const lng = Number(resource.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         const marker = L.marker([lat, lng], { icon: createResourceMarkerIcon(resource.type) });
-        marker.bindPopup("<strong>" + (resource.name || "Resource") + "</strong><br>" + (resource.status || ""));
+        marker.bindPopup("<strong>" + esc(resource.name || "Resource") + "</strong><br>" + esc(resource.status || ""));
         marker.addTo(markersLayer);
         bounds.push([lat, lng]);
       });

@@ -30,6 +30,9 @@ Use Ops Watch to create and manage operational resources across a live map and l
 - Draw and clear map radii.
 - Upload and clear KML overlays.
 - Seed demo data for training/review workflows.
+- Open a read-only **Dashboard** window (map + resources + command snapshot) for a second screen or projector.
+- Generate a **Share Live Link** to broadcast live updates to viewers over WebRTC.
+- One-click **Clear Resources + People** to reset Ops Watch resources, signed-in personnel, and assignment slots.
 
 ### 2) Crew Staffing (Embedded)
 Crew Staffing is loaded in an embedded frame from:
