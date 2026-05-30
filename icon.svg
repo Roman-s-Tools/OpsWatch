@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OpsWatch">
+  <rect width="512" height="512" rx="96" fill="#1f2937"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#60a5fa" stroke-width="24"/>
+  <circle cx="256" cy="256" r="70" fill="none" stroke="#60a5fa" stroke-width="20"/>
+  <circle cx="256" cy="256" r="26" fill="#dc2626"/>
+  <line x1="256" y1="40" x2="256" y2="120" stroke="#60a5fa" stroke-width="24" stroke-linecap="round"/>
+  <line x1="256" y1="392" x2="256" y2="472" stroke="#60a5fa" stroke-width="24" stroke-linecap="round"/>
+  <line x1="40" y1="256" x2="120" y2="256" stroke="#60a5fa" stroke-width="24" stroke-linecap="round"/>
+  <line x1="392" y1="256" x2="472" y2="256" stroke="#60a5fa" stroke-width="24" stroke-linecap="round"/>
+</svg>

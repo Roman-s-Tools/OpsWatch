@@ -44,6 +44,7 @@ const defaultResources = [
 let resources = loadResources().map(normalizeResource);
 let currentFilter = "All";
 let searchQuery = "";
+let editingResourceId = null;
 let map;
 let markersLayer;
 let radiiLayer;
@@ -55,11 +56,14 @@ let draftCircle = null;
 let movingRadiusId = null;
 let movingRadiusOffset = null;
 let kmlLayer = null;
+let lastBoundsKey = null;
 let dashboardWindow = null;
 let liveSyncProvider = null;
 let liveSyncMap = null;
 let applyingLiveSync = false;
 let receivedRemoteLiveState = false;
+let isLiveViewer = false;
+let liveSessionPassword = "";
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -77,6 +81,8 @@ const els = {
   airFields: document.getElementById("airFields"),
   vehicleFields: document.getElementById("vehicleFields"),
   useLocationBtn: document.getElementById("useLocationBtn"),
+  resourceSubmitBtn: document.getElementById("resourceSubmitBtn"),
+  resourceCancelEditBtn: document.getElementById("resourceCancelEditBtn"),
   list: document.getElementById("resourceList"),
   count: document.getElementById("resourceCount"),
   search: document.getElementById("searchInput"),
@@ -84,6 +90,7 @@ const els = {
   importInput: document.getElementById("importInput"),
   openDashboardBtn: document.getElementById("openDashboardBtn"),
   shareLiveBtn: document.getElementById("shareLiveBtn"),
+  liveStatus: document.getElementById("liveStatus"),
   showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
   seedDemoDataBtn: document.getElementById("seedDemoDataBtn"),
   clearResourcesPeopleBtn: document.getElementById("clearResourcesPeopleBtn"),
@@ -109,7 +116,9 @@ const els = {
   fieldNoteText: document.getElementById("fieldNoteText"),
   fieldNotesList: document.getElementById("fieldNotesList"),
   fieldNotesCount: document.getElementById("fieldNotesCount"),
-  fieldNotesPrintBtn: document.getElementById("fieldNotesPrintBtn")
+  fieldNotesPrintBtn: document.getElementById("fieldNotesPrintBtn"),
+  fieldNotesExportBtn: document.getElementById("fieldNotesExportBtn"),
+  fieldNotesImportInput: document.getElementById("fieldNotesImportInput")
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -212,6 +221,7 @@ function setActiveTool(tool) {
 function bindEvents() {
   els.type.addEventListener("change", toggleResourceFields);
   els.form.addEventListener("submit", addResource);
+  els.resourceCancelEditBtn?.addEventListener("click", exitEditMode);
   els.useLocationBtn.addEventListener("click", useCurrentLocation);
   els.search.addEventListener("input", event => {
     searchQuery = event.target.value.trim().toLowerCase();
@@ -247,10 +257,20 @@ function initLiveSync() {
   const url = new URL(window.location.href);
   const existingSession = url.searchParams.get("live");
   if (!existingSession) return;
+
+  // A shared link arrives as ?live=<room>&view=1#k=<password>. The password
+  // lives in the URL fragment so it is never sent to the signaling server; it
+  // encrypts peer-to-peer sync traffic. view=1 marks a read-only viewer.
+  isLiveViewer = url.searchParams.get("view") === "1";
+  liveSessionPassword = new URLSearchParams(url.hash.replace(/^#/, "")).get("k") || "";
+
   const roomId = `opswatch-${existingSession}`;
   const ydoc = new window.Y.Doc();
   liveSyncMap = ydoc.getMap("opswatch-state");
-  liveSyncProvider = new window.WebrtcProvider(roomId, ydoc);
+  const options = {};
+  if (liveSessionPassword) options.password = liveSessionPassword;
+  liveSyncProvider = new window.WebrtcProvider(roomId, ydoc, options);
+
   liveSyncMap.observe(() => {
     const payload = liveSyncMap.get("payload");
     if (!payload || typeof payload !== "object") return;
@@ -259,9 +279,50 @@ function initLiveSync() {
     applyLiveState(payload);
     applyingLiveSync = false;
   });
-  window.setTimeout(() => {
-    if (!receivedRemoteLiveState) publishLiveState();
-  }, 1200);
+
+  const awareness = liveSyncProvider.awareness;
+  if (awareness) {
+    awareness.setLocalStateField("role", isLiveViewer ? "viewer" : "editor");
+    awareness.on("change", updateLiveStatus);
+  }
+  liveSyncProvider.on("status", updateLiveStatus);
+
+  applyViewerMode();
+  updateLiveStatus();
+
+  // Viewers never broadcast; editors seed the room if no one else has yet.
+  if (!isLiveViewer) {
+    window.setTimeout(() => {
+      if (!receivedRemoteLiveState) publishLiveState();
+    }, 1200);
+  }
+}
+
+function applyViewerMode() {
+  if (!isLiveViewer) return;
+  document.body.classList.add("live-viewer");
+  let banner = document.getElementById("liveViewerBanner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "liveViewerBanner";
+    banner.textContent = "Read-only live view — changes here are not saved or shared.";
+    document.body.prepend(banner);
+  }
+}
+
+function updateLiveStatus() {
+  if (!els.liveStatus) return;
+  if (!liveSyncProvider) {
+    els.liveStatus.textContent = "";
+    els.liveStatus.hidden = true;
+    return;
+  }
+  const awareness = liveSyncProvider.awareness;
+  const peers = awareness ? Math.max(awareness.getStates().size - 1, 0) : 0;
+  const connected = liveSyncProvider.connected;
+  const role = isLiveViewer ? "Viewing" : "Sharing";
+  els.liveStatus.hidden = false;
+  els.liveStatus.textContent = `● Live ${role} · ${peers} other${peers === 1 ? "" : "s"} connected${connected ? "" : " (connecting…)"}`;
 }
 
 function applyLiveState(payload) {
@@ -292,7 +353,7 @@ function applyLiveState(payload) {
 }
 
 function publishLiveState() {
-  if (!liveSyncMap || applyingLiveSync) return;
+  if (!liveSyncMap || applyingLiveSync || isLiveViewer) return;
   liveSyncMap.set("payload", {
     resources,
     radii,
@@ -308,20 +369,36 @@ function publishLiveState() {
 }
 
 async function shareLiveLink() {
+  if (isLiveViewer) {
+    alert("This is a read-only viewer session, so it cannot start a new share.");
+    return;
+  }
+
   const url = new URL(window.location.href);
   if (!url.searchParams.get("live")) {
     url.searchParams.set("live", crypto.randomUUID().slice(0, 8));
+    // Mint a one-time encryption password and keep it in the fragment so it
+    // stays out of the room name / signaling traffic.
+    liveSessionPassword = crypto.randomUUID().replace(/-/g, "");
+    url.hash = `k=${liveSessionPassword}`;
     window.history.replaceState({}, "", url.toString());
     initLiveSync();
   }
   publishLiveState();
-  const shareUrl = url.toString();
+
+  // Hand out a read-only viewer link; the host page keeps editing rights.
+  const viewerUrl = new URL(url.toString());
+  viewerUrl.searchParams.set("view", "1");
+  if (liveSessionPassword) viewerUrl.hash = `k=${liveSessionPassword}`;
+  const shareUrl = viewerUrl.toString();
+
   try {
     await navigator.clipboard.writeText(shareUrl);
-    alert("Live link copied. Anyone with this link can view live updates.");
+    alert("Read-only live link copied. Anyone with this link can watch your board update in real time.");
   } catch {
-    window.prompt("Copy this live link:", shareUrl);
+    window.prompt("Copy this read-only live link:", shareUrl);
   }
+  updateLiveStatus();
 }
 
 function showWmirsDisclaimer() {
@@ -427,7 +504,7 @@ function addResource(event) {
 
   const type = els.type.value;
   const resource = {
-    id: crypto.randomUUID(),
+    id: editingResourceId || crypto.randomUUID(),
     type,
     name: els.name.value.trim(),
     label: els.label.value.trim() || els.name.value.trim(),
@@ -437,7 +514,8 @@ function addResource(event) {
     notes: els.notes.value.trim(),
     crew: els.crew.value.trim(),
     tail: type === "Air" ? normalizeTail(els.tail.value) : "",
-    vehicleNumber: type === "Vehicle" ? els.vehicleNumber.value.trim() : ""
+    vehicleNumber: type === "Vehicle" ? els.vehicleNumber.value.trim() : "",
+    updatedAt: new Date().toISOString()
   };
 
   if (!resource.name) return;
@@ -457,24 +535,58 @@ function addResource(event) {
     return;
   }
 
-  resources.push(resource);
+  if (editingResourceId) {
+    const index = resources.findIndex(item => item.id === editingResourceId);
+    if (index !== -1) resources[index] = resource;
+    else resources.push(resource);
+  } else {
+    resources.push(resource);
+  }
+
   saveResources();
+  exitEditMode();
+  render();
+}
+
+function startEditResource(id) {
+  const resource = resources.find(item => item.id === id);
+  if (!resource) return;
+
+  editingResourceId = id;
+  els.type.value = resource.type;
+  toggleResourceFields();
+  els.name.value = resource.name || "";
+  els.crew.value = resource.crew || "";
+  els.label.value = resource.label || "";
+  els.lat.value = resource.lat ?? "";
+  els.lng.value = resource.lng ?? "";
+  els.tail.value = resource.tail || "";
+  els.vehicleNumber.value = resource.vehicleNumber || "";
+  els.status.value = resource.status || "Available";
+  els.notes.value = resource.notes || "";
+
+  els.resourceSubmitBtn.textContent = "Update Resource";
+  els.resourceCancelEditBtn.classList.remove("hidden");
+  setActiveTool("opswatch");
+  els.name.focus();
+  els.form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function exitEditMode() {
+  editingResourceId = null;
   els.form.reset();
   els.type.value = "Ground";
   toggleResourceFields();
-  render();
+  els.resourceSubmitBtn.textContent = "Add Resource";
+  els.resourceCancelEditBtn.classList.add("hidden");
 }
 
 function render() {
   const visible = getVisibleResources();
   renderList(visible);
-  queueMapRender(visible);
+  renderMap(visible);
   els.count.textContent = `${visible.length} visible of ${resources.length} total`;
   renderCommandPanel();
-}
-
-function queueMapRender(visible) {
-  renderMap(visible);
 }
 
 function getVisibleResources() {
@@ -522,12 +634,13 @@ function renderList(visible) {
 
     const meta = card.querySelector(".resource-meta");
     const crewText = resource.crew || "No crew listed";
+    const updatedText = resource.updatedAt ? ` · Updated ${formatRelativeTime(resource.updatedAt)}` : "";
     if (resource.type === "Air") {
-      meta.textContent = `Crew: ${crewText} · Tail / Registration: ${resource.tail}`;
+      meta.textContent = `Crew: ${crewText} · Tail / Registration: ${resource.tail}${updatedText}`;
     } else if (resource.type === "Vehicle") {
-      meta.textContent = `Crew: ${crewText} · Vehicle Number: ${resource.vehicleNumber || "Not provided"} · ${resource.lat}, ${resource.lng}`;
+      meta.textContent = `Crew: ${crewText} · Vehicle Number: ${resource.vehicleNumber || "Not provided"} · ${resource.lat}, ${resource.lng}${updatedText}`;
     } else {
-      meta.textContent = `Crew: ${crewText} · ${resource.label} · ${resource.lat}, ${resource.lng}`;
+      meta.textContent = `Crew: ${crewText} · ${resource.label} · ${resource.lat}, ${resource.lng}${updatedText}`;
     }
 
     const actions = card.querySelector(".resource-actions");
@@ -555,6 +668,12 @@ function renderList(visible) {
     } else {
       actions.appendChild(makeLink("Open Map", buildMapUrl(resource.lat, resource.lng)));
     }
+
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => startEditResource(resource.id));
+    actions.appendChild(edit);
 
     const remove = document.createElement("button");
     remove.type = "button";
@@ -587,35 +706,30 @@ function renderMap(visible) {
       const point = event.target.getLatLng();
       resource.lat = Number(point.lat.toFixed(6));
       resource.lng = Number(point.lng.toFixed(6));
+      resource.updatedAt = new Date().toISOString();
+      lastBoundsKey = null;
       saveResources();
       renderList(getVisibleResources());
     });
     bounds.push([Number(resource.lat), Number(resource.lng)]);
   });
 
-  map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+  // Only re-fit the view when the plotted coordinates actually change, so
+  // status edits, searches, and other re-renders don't yank the map around.
+  const boundsKey = bounds.map(point => point.join(",")).sort().join("|");
+  if (boundsKey !== lastBoundsKey) {
+    map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+    lastBoundsKey = boundsKey;
+  }
 }
 
 function createColorMarker(type) {
-  const color = TYPE_COLORS[type] || "#334155";
-  const isAirResource = type === "Air";
-  const isVehicleResource = type === "Vehicle";
-  const isIncidentCommandPost = type === "Incident Command Post";
-  const isStagingArea = type === "Staging Area";
-  const markerHtml = isAirResource
-    ? `<span style="display:grid;place-items:center;width:24px;height:24px;color:${color};font-size:22px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">✈</span>`
-    : isVehicleResource
-      ? `<span style="display:grid;place-items:center;width:22px;height:22px;color:${color};font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">🚗</span>`
-      : isIncidentCommandPost
-        ? `<span style="display:grid;place-items:center;width:22px;height:22px;color:${color};font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">🚩</span>`
-        : isStagingArea
-          ? `<span style="display:grid;place-items:center;width:22px;height:22px;color:${color};font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;">🏢</span>`
-          : `<span style="display:block;width:14px;height:14px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);"></span>`;
+  const spec = resourceIconSpec(type, TYPE_COLORS);
   return L.divIcon({
     className: "resource-pin-wrapper",
-    html: markerHtml,
-    iconSize: isAirResource ? [24, 24] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [22, 22] : [18, 18],
-    iconAnchor: isAirResource ? [12, 12] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [11, 11] : [9, 9],
+    html: spec.html,
+    iconSize: spec.iconSize,
+    iconAnchor: spec.iconAnchor,
     popupAnchor: [0, -10]
   });
 }
@@ -725,14 +839,30 @@ function updateResourceStatus(id, status) {
   if (!resource || !RESOURCE_STATUSES.includes(status)) return;
 
   resource.status = status;
+  resource.updatedAt = new Date().toISOString();
   saveResources();
   render();
 }
 
 function removeResource(id) {
   resources = resources.filter(resource => resource.id !== id);
+  if (editingResourceId === id) exitEditMode();
   saveResources();
   render();
+}
+
+function formatRelativeTime(isoString) {
+  const then = new Date(isoString).getTime();
+  if (!Number.isFinite(then)) return "";
+  const seconds = Math.round((Date.now() - then) / 1000);
+  if (seconds < 45) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(then).toLocaleDateString();
 }
 
 function useCurrentLocation() {
@@ -795,7 +925,7 @@ function importJson(event) {
       const imported = JSON.parse(String(reader.result));
       if (!Array.isArray(imported)) throw new Error("Import must be an array.");
 
-      resources = imported.map(resource => ({
+      resources = imported.map(resource => normalizeResource({
         id: resource.id || crypto.randomUUID(),
         type: resource.type || "Ground",
         name: resource.name || "Unnamed Resource",
@@ -805,7 +935,8 @@ function importJson(event) {
         lng: resource.lng ?? "",
         notes: resource.notes || "",
         crew: resource.crew || "",
-        tail: resource.tail || ""
+        tail: resource.tail || "",
+        vehicleNumber: resource.vehicleNumber || ""
       }));
 
       saveResources();
@@ -822,11 +953,16 @@ function importJson(event) {
 
 function copySummary() {
   const summary = resources.map(resource => {
+    const crew = resource.crew || "No crew";
+    const notes = resource.notes || "No notes";
     if (resource.type === "Air") {
-      return `${resource.type}: ${resource.name} (${resource.tail}) - Crew: ${resource.crew || "No crew"} - ${resource.status} - ${resource.notes || "No notes"}`;
+      return `${resource.type}: ${resource.name} (${resource.tail}) - Crew: ${crew} - ${resource.status} - ${notes}`;
+    }
+    if (resource.type === "Vehicle") {
+      return `${resource.type}: ${resource.name} [${resource.vehicleNumber || "No unit #"}] - Crew: ${crew} - ${resource.status} - ${resource.lat}, ${resource.lng} - ${notes}`;
     }
 
-    return `${resource.type}: ${resource.name} [${resource.label}] - Crew: ${resource.crew || "No crew"} - ${resource.status} - ${resource.lat}, ${resource.lng} - ${resource.notes || "No notes"}`;
+    return `${resource.type}: ${resource.name} [${resource.label}] - Crew: ${crew} - ${resource.status} - ${resource.lat}, ${resource.lng} - ${notes}`;
   }).join("\n");
 
   navigator.clipboard.writeText(summary).then(
@@ -877,50 +1013,6 @@ function clearKml() {
   kmlLayer = null;
 }
 
-function parseKmlFeatures(xml) {
-  const placemarks = Array.from(xml.getElementsByTagName("Placemark"));
-  return placemarks.flatMap(placemark => {
-    const name = placemark.getElementsByTagName("name")[0]?.textContent?.trim() || "";
-
-    const point = placemark.getElementsByTagName("Point")[0];
-    if (point) {
-      const coordinates = extractCoordinates(point);
-      if (coordinates.length) {
-        return [{ type: "Feature", properties: { name }, geometry: { type: "Point", coordinates: coordinates[0] } }];
-      }
-    }
-
-    const line = placemark.getElementsByTagName("LineString")[0];
-    if (line) {
-      const coordinates = extractCoordinates(line);
-      if (coordinates.length > 1) {
-        return [{ type: "Feature", properties: { name }, geometry: { type: "LineString", coordinates } }];
-      }
-    }
-
-    const polygon = placemark.getElementsByTagName("Polygon")[0];
-    if (polygon) {
-      const outerBoundary = polygon.getElementsByTagName("outerBoundaryIs")[0] || polygon;
-      const ring = extractCoordinates(outerBoundary);
-      if (ring.length > 2) {
-        return [{ type: "Feature", properties: { name }, geometry: { type: "Polygon", coordinates: [ring] } }];
-      }
-    }
-
-    return [];
-  });
-}
-
-function extractCoordinates(parent) {
-  const text = parent.getElementsByTagName("coordinates")[0]?.textContent || "";
-  return text
-    .trim()
-    .split(/\s+/)
-    .map(raw => raw.split(",").map(Number))
-    .filter(parts => Number.isFinite(parts[0]) && Number.isFinite(parts[1]))
-    .map(parts => [parts[0], parts[1]]);
-}
-
 function makeBadge(text, className) {
   const badge = document.createElement("span");
   badge.className = `badge ${className}`;
@@ -935,22 +1027,6 @@ function makeLink(text, href) {
   link.rel = "noopener noreferrer";
   link.textContent = text;
   return link;
-}
-
-function normalizeTail(tail) {
-  return tail.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
-}
-
-function buildFlightAwareUrl(tail) {
-  return `https://www.flightaware.com/live/flight/${encodeURIComponent(normalizeTail(tail))}`;
-}
-
-function buildFlightRadarUrl(tail) {
-  return `https://www.flightradar24.com/data/aircraft/${encodeURIComponent(normalizeTail(tail).toLowerCase())}`;
-}
-
-function buildMapUrl(lat, lng) {
-  return `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`;
 }
 
 function loadResources() {
@@ -1046,6 +1122,8 @@ function openDashboardWindow() {
   <script>
     const TYPE_COLORS = ${JSON.stringify(TYPE_COLORS)};
     const COMMAND_STATUS_CLASS = { Green: "status-green", Yellow: "status-yellow", Red: "status-red", Black: "status-black" };
+    const esc = value => String(value == null ? "" : value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+    const resourceIconSpec = ${resourceIconSpec.toString()};
     const map = L.map("dashboardMap").setView([29.7604, -95.3698], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
     const markersLayer = L.layerGroup().addTo(map);
@@ -1075,7 +1153,7 @@ function openDashboardWindow() {
         if (!value) return;
         const block = document.createElement("article");
         block.className = "objective-item";
-        block.innerHTML = "<strong>" + label + "</strong><div class='muted'>" + value + "</div>";
+        block.innerHTML = "<strong>" + esc(label) + "</strong><div class='muted'>" + esc(value) + "</div>";
         objectiveList.appendChild(block);
       });
       if (!objectiveList.children.length) {
@@ -1087,7 +1165,7 @@ function openDashboardWindow() {
       resources.forEach(resource => {
         const card = document.createElement("article");
         card.className = "resource";
-        card.innerHTML = "<div><span class='badge'>" + (resource.type || "Unknown") + "</span> <span class='status'>" + (resource.status || "Unknown") + "</span></div><strong>" + (resource.name || "Unnamed Resource") + "</strong><div class='muted'>" + (resource.label || "") + "</div>";
+        card.innerHTML = "<div><span class='badge'>" + esc(resource.type || "Unknown") + "</span> <span class='status'>" + esc(resource.status || "Unknown") + "</span></div><strong>" + esc(resource.name || "Unnamed Resource") + "</strong><div class='muted'>" + esc(resource.label || "") + "</div>";
         list.appendChild(card);
       });
       (command.assignments || []).forEach(item => {
@@ -1095,7 +1173,7 @@ function openDashboardWindow() {
         card.className = "resource";
         const statusLabel = item.status || "Green";
         const statusClass = COMMAND_STATUS_CLASS[statusLabel] || "status-green";
-        card.innerHTML = "<div><span class='badge " + statusClass + "'>" + statusLabel + "</span></div><strong>" + (item.name || "Unassigned") + "</strong><div class='muted'>" + (item.position || "") + "</div>";
+        card.innerHTML = "<div><span class='badge " + statusClass + "'>" + esc(statusLabel) + "</span></div><strong>" + esc(item.name || "Unassigned") + "</strong><div class='muted'>" + esc(item.position || "") + "</div>";
         commandAssignments.appendChild(card);
       });
 
@@ -1104,23 +1182,8 @@ function openDashboardWindow() {
       const bounds = [];
 
       const createResourceMarkerIcon = type => {
-        const color = TYPE_COLORS[type] || "#334155";
-        const isAirResource = type === "Air";
-        const isVehicleResource = type === "Vehicle";
-        const isIncidentCommandPost = type === "Incident Command Post";
-        const isStagingArea = type === "Staging Area";
-        const markerHtml = isAirResource
-          ? "<span style='display:grid;place-items:center;width:24px;height:24px;color:" + color + ";font-size:22px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>✈</span>"
-          : isVehicleResource
-            ? "<span style='display:grid;place-items:center;width:22px;height:22px;color:" + color + ";font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>🚗</span>"
-            : isIncidentCommandPost
-              ? "<span style='display:grid;place-items:center;width:22px;height:22px;color:" + color + ";font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>🚩</span>"
-              : isStagingArea
-                ? "<span style='display:grid;place-items:center;width:22px;height:22px;color:" + color + ";font-size:20px;line-height:1;text-shadow:0 0 2px #fff,0 0 4px #fff;'>🏢</span>"
-                : "<span style='display:block;width:14px;height:14px;border-radius:999px;background:" + color + ";border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,0.35);'></span>";
-        const iconSize = isAirResource ? [24, 24] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [22, 22] : [18, 18];
-        const iconAnchor = isAirResource ? [12, 12] : isVehicleResource || isIncidentCommandPost || isStagingArea ? [11, 11] : [9, 9];
-        return L.divIcon({ className: "", html: markerHtml, iconSize, iconAnchor });
+        const spec = resourceIconSpec(type, TYPE_COLORS);
+        return L.divIcon({ className: "", html: spec.html, iconSize: spec.iconSize, iconAnchor: spec.iconAnchor });
       };
 
       resources.forEach(resource => {
@@ -1128,7 +1191,7 @@ function openDashboardWindow() {
         const lng = Number(resource.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         const marker = L.marker([lat, lng], { icon: createResourceMarkerIcon(resource.type) });
-        marker.bindPopup("<strong>" + (resource.name || "Resource") + "</strong><br>" + (resource.status || ""));
+        marker.bindPopup("<strong>" + esc(resource.name || "Resource") + "</strong><br>" + esc(resource.status || ""));
         marker.addTo(markersLayer);
         bounds.push([lat, lng]);
       });
@@ -1151,29 +1214,6 @@ function openDashboardWindow() {
 </html>`);
   dashboardWindow.document.close();
   setTimeout(postDashboardUpdate, 150);
-}
-
-function slug(value) {
-  return value.toLowerCase().replace(/\s+/g, "-");
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-
-function normalizeResource(resource) {
-  return {
-    ...resource,
-    crew: resource.crew || "",
-    tail: resource.tail || "",
-    vehicleNumber: resource.vehicleNumber || ""
-  };
 }
 
 const CREW_STAFFING_STORAGE_KEY = "romans-assignment-roster-v1";
@@ -1480,6 +1520,65 @@ function bindFieldNotesControls() {
   els.fieldNoteRole?.addEventListener("input", saveFieldNoteAuthor);
   els.fieldNoteForm?.addEventListener("submit", addFieldNote);
   els.fieldNotesPrintBtn?.addEventListener("click", printFieldNotes);
+  els.fieldNotesExportBtn?.addEventListener("click", exportFieldNotes);
+  els.fieldNotesImportInput?.addEventListener("change", importFieldNotes);
+}
+
+function exportFieldNotes() {
+  const payload = { exportedAt: new Date().toISOString(), fieldNotes };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `field-notes-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function normalizeFieldNote(note) {
+  const source = note && typeof note === "object" ? note : {};
+  return {
+    id: String(source.id || crypto.randomUUID()),
+    name: String(source.name || "Unknown"),
+    role: String(source.role || "Unknown"),
+    text: String(source.text || "").trim(),
+    createdAt: source.createdAt || new Date().toISOString()
+  };
+}
+
+function importFieldNotes(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result || "{}"));
+      const incoming = Array.isArray(parsed) ? parsed : parsed.fieldNotes;
+      if (!Array.isArray(incoming)) throw new Error("Missing fieldNotes array.");
+
+      const normalized = incoming.map(normalizeFieldNote).filter(note => note.text);
+      const merge = fieldNotes.length
+        ? window.confirm("Merge imported notes with existing notes? Choose Cancel to replace all current notes.")
+        : false;
+
+      if (merge) {
+        const existingIds = new Set(fieldNotes.map(note => note.id));
+        const additions = normalized.filter(note => !existingIds.has(note.id));
+        fieldNotes = [...additions, ...fieldNotes];
+      } else {
+        fieldNotes = normalized;
+      }
+
+      fieldNotes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      saveFieldNotes();
+      renderFieldNotes();
+    } catch {
+      alert("Could not import this file. Exported Field Notes JSON is expected.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+  reader.readAsText(file);
 }
 
 function addFieldNote(event) {

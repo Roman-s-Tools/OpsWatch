@@ -1,0 +1,19 @@
+{
+  "name": "OpsWatch Unified Workspace",
+  "short_name": "OpsWatch",
+  "description": "Browser-based multi-tool operations workspace: resource map, crew staffing, assignment board, field notes, and command panel.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f7fb",
+  "theme_color": "#1f2937",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "opswatch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser-based multi-tool operations workspace (resource map, crew staffing, assignment board, field notes, command panel).",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.8"
+  }
+}

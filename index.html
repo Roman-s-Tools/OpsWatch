@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Crew Watch</title>
+  <title>OpsWatch</title>
   <meta
     name="description"
     content="Track ground, sUAS, and air resources with map labels and aircraft tail-number lookup links."
   />
 
   <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#1f2937" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 </head>
 <body>
@@ -28,8 +31,8 @@
   <header class="site-header">
     <div class="container header-grid">
       <div>
-        <p class="eyebrow">Crew Watch</p>
-        <h1>Crew Watch</h1>
+        <p class="eyebrow">OpsWatch</p>
+        <h1>OpsWatch</h1>
         <p class="lede">
           Track ground teams, sUAS teams, and air resources from one lightweight operations board.
           Place map icons for all resource types and drag them to reflect movement in real time.
@@ -43,12 +46,13 @@
           Import JSON
           <input id="importInput" type="file" accept="application/json" />
         </label>
-        <button id="seedDemoDataBtn" class="button secondary" type="button">Load Demo Data</button>
-        <button id="clearResourcesPeopleBtn" class="button secondary" type="button">Clear Resources + People</button>
+        <button id="seedDemoDataBtn" class="button secondary viewer-hide" type="button">Load Demo Data</button>
+        <button id="clearResourcesPeopleBtn" class="button secondary viewer-hide" type="button">Clear Resources + People</button>
         <button id="openDashboardBtn" class="button secondary" type="button">Dashboard</button>
-        <button id="shareLiveBtn" class="button secondary" type="button">Share Live Link</button>
+        <button id="shareLiveBtn" class="button secondary viewer-hide" type="button">Share Live Link</button>
         <button id="showDisclaimerBtn" class="button secondary" type="button">Disclaimer</button>
       </div>
+      <p id="liveStatus" class="live-status" hidden></p>
     </div>
   </header>
   <main class="container tool-shell">
@@ -67,7 +71,7 @@
     </section>
 
     <section id="opswatchApp" class="main-grid tool-panel active" role="tabpanel">
-    <section class="panel"><div class="panel-heading"><h2>Add Resource</h2><p>Use coordinates for map icons (Ground, sUAS, Air, and Vehicles). Air resources need a tail number, and vehicles need a vehicle number.</p></div><form id="resourceForm" class="resource-form"><label>Resource Type<select id="resourceType" required><option value="Ground">Ground</option><option value="sUAS">sUAS</option><option value="Air">Air</option><option value="Vehicle">Vehicle</option><option value="Incident Command Post">Incident Command Post</option><option value="Staging Area">Staging Area</option></select></label><label>Resource Name<input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required /></label><label>Crew<input id="resourceCrew" type="text" placeholder="Names or team assigned to this resource" /></label><div id="mapFields"><label>Map Label<input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" /></label><div class="two-column"><label>Latitude<input id="latitude" type="number" step="any" placeholder="29.7604" required /></label><label>Longitude<input id="longitude" type="number" step="any" placeholder="-95.3698" required /></label></div><button id="useLocationBtn" class="button secondary full-width" type="button">Use My Current Location</button></div><div id="airFields" class="hidden"><label>Tail Number / Registration<input id="tailNumber" type="text" placeholder="N12345" /></label></div><div id="vehicleFields" class="hidden"><label>Vehicle Number<input id="vehicleNumber" type="text" placeholder="Unit 42" /></label></div><label>Status<select id="status"><option>Available</option><option>Assigned</option><option>Enroute</option><option>Onscene</option><option>Offline</option></select></label><label>Notes<textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea></label><button class="button primary full-width" type="submit">Add Resource</button></form></section>
+    <section class="panel"><div class="panel-heading"><h2>Add Resource</h2><p>Use coordinates for map icons (Ground, sUAS, Air, and Vehicles). Air resources need a tail number, and vehicles need a vehicle number.</p></div><form id="resourceForm" class="resource-form"><label>Resource Type<select id="resourceType" required><option value="Ground">Ground</option><option value="sUAS">sUAS</option><option value="Air">Air</option><option value="Vehicle">Vehicle</option><option value="Incident Command Post">Incident Command Post</option><option value="Staging Area">Staging Area</option></select></label><label>Resource Name<input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required /></label><label>Crew<input id="resourceCrew" type="text" placeholder="Names or team assigned to this resource" /></label><div id="mapFields"><label>Map Label<input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" /></label><div class="two-column"><label>Latitude<input id="latitude" type="number" step="any" placeholder="29.7604" required /></label><label>Longitude<input id="longitude" type="number" step="any" placeholder="-95.3698" required /></label></div><button id="useLocationBtn" class="button secondary full-width" type="button">Use My Current Location</button></div><div id="airFields" class="hidden"><label>Tail Number / Registration<input id="tailNumber" type="text" placeholder="N12345" /></label></div><div id="vehicleFields" class="hidden"><label>Vehicle Number<input id="vehicleNumber" type="text" placeholder="Unit 42" /></label></div><label>Status<select id="status"><option>Available</option><option>Assigned</option><option>Enroute</option><option>Onscene</option><option>Offline</option></select></label><label>Notes<textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea></label><button id="resourceSubmitBtn" class="button primary full-width" type="submit">Add Resource</button><button id="resourceCancelEditBtn" class="button secondary full-width hidden" type="button">Cancel Edit</button></form></section>
     <section class="workspace"><section class="panel"><div class="toolbar"><div><h2>Map Board</h2><p>All resources appear here. Drag any icon to update its current location.</p></div><div class="filters" aria-label="Resource filters"><button class="filter active" data-filter="All" type="button">All</button><button class="filter" data-filter="Ground" type="button">Ground</button><button class="filter" data-filter="sUAS" type="button">sUAS</button><button class="filter" data-filter="Air" type="button">Air</button><button class="filter" data-filter="Vehicle" type="button">Vehicle</button></div></div><div class="map-actions"><button id="drawRadiusBtn" class="button secondary" type="button">Draw Radius</button><button id="clearRadiiBtn" class="button secondary" type="button">Clear Radii</button><label class="button secondary file-button">Upload KML<input id="kmlInput" type="file" accept=".kml,application/vnd.google-earth.kml+xml,application/xml,text/xml" /></label><button id="clearKmlBtn" class="button secondary" type="button">Clear KML</button></div><div id="map"></div></section>
       <section class="panel"><div class="toolbar"><div><h2>Resource List</h2><p id="resourceCount">0 resources</p></div><label class="search-label"><span class="sr-only">Search resources</span><input id="searchInput" type="search" placeholder="Search resources" /></label></div><div id="resourceList" class="resource-list"></div></section></section>
       </section>
@@ -77,8 +81,8 @@
       <div class="header-actions" aria-label="Crew Staffing actions">
         <button id="crewPrintBtn" class="button secondary" type="button">Print / PDF</button>
         <button id="crewExportBtn" class="button secondary" type="button">Export JSON</button>
-        <label class="button secondary file-button">Import JSON<input id="crewImportInput" type="file" accept="application/json" /></label>
-        <button id="crewClearBtn" class="button secondary" type="button">Clear Page</button>
+        <label class="button secondary file-button viewer-hide">Import JSON<input id="crewImportInput" type="file" accept="application/json" /></label>
+        <button id="crewClearBtn" class="button secondary viewer-hide" type="button">Clear Page</button>
       </div>
       <iframe id="crewStaffingFrame" title="Crew Staffing tool" src="./crew-staffing/index.html?embed=1"></iframe>
     </section>
@@ -90,9 +94,9 @@
           <p>Drag signed-in mission personnel from the left roster onto IMT positions.</p>
         </div>
         <div class="header-actions">
-          <button id="assignmentReloadBtn" class="button secondary" type="button">Reload from Crew Staffing</button>
-          <label class="button secondary file-button">Upload Prefill JSON<input id="assignmentImportInput" type="file" accept="application/json" /></label>
-          <button id="assignmentClearBtn" class="button secondary" type="button">Clear Assignments</button>
+          <button id="assignmentReloadBtn" class="button secondary viewer-hide" type="button">Reload from Crew Staffing</button>
+          <label class="button secondary file-button viewer-hide">Upload Prefill JSON<input id="assignmentImportInput" type="file" accept="application/json" /></label>
+          <button id="assignmentClearBtn" class="button secondary viewer-hide" type="button">Clear Assignments</button>
         </div>
       </div>
       <div class="assignment-layout">
@@ -115,6 +119,8 @@
         </div>
         <div class="header-actions">
           <button id="fieldNotesPrintBtn" class="button secondary" type="button">Print Notes / PDF</button>
+          <button id="fieldNotesExportBtn" class="button secondary" type="button">Export JSON</button>
+          <label class="button secondary file-button viewer-hide">Import JSON<input id="fieldNotesImportInput" type="file" accept="application/json" /></label>
         </div>
       </div>
       <form id="fieldNoteForm" class="resource-form">
@@ -192,6 +198,14 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/yjs@13.6.18/dist/yjs.js"></script>
   <script src="https://unpkg.com/y-webrtc@10.3.0/dist/y-webrtc.js"></script>
+  <script src="ops-utils.js"></script>
   <script src="script.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
