@@ -656,6 +656,113 @@ textarea:focus {
   letter-spacing: 0.01em;
 }
 
+.live-peers {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.badge.stale {
+  background: #fef2f2;
+  color: #b42318;
+  border-color: #fecaca;
+}
+
+.activity-list {
+  display: grid;
+  gap: 10px;
+}
+
+.activity-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.activity-body {
+  display: grid;
+  gap: 2px;
+}
+
+.activity-detail {
+  color: #344054;
+  font-size: 0.9rem;
+}
+
+.activity-time {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.activity-kind {
+  align-self: center;
+}
+
+.activity-kind.kind-add {
+  background: #ecfdf3;
+  color: #067647;
+  border-color: #abefc6;
+}
+
+.activity-kind.kind-status {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.activity-kind.kind-move {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.activity-kind.kind-edit {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+
+.activity-kind.kind-remove {
+  background: #fef2f2;
+  color: #b42318;
+  border-color: #fecaca;
+}
+
+.toast-host {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1300;
+  display: grid;
+  gap: 10px;
+  max-width: min(380px, calc(100% - 32px));
+}
+
+.toast {
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.toast-error {
+  background: #b42318;
+}
+
+.toast-info {
+  background: #1f2937;
+}
+
 #liveViewerBanner {
   position: sticky;
   top: 0;

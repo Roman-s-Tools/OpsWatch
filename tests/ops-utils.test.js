@@ -11,7 +11,14 @@ const {
   normalizeResource,
   resourceIconSpec,
   extractCoordinates,
-  parseKmlFeatures
+  parseKmlFeatures,
+  minutesSince,
+  isResourceStale,
+  buildActivityLine,
+  haversineMeters,
+  trailDistanceMeters,
+  resourceCounts,
+  buildIcs203Rows
 } = utils;
 
 describe("escapeHtml", () => {
@@ -143,5 +150,115 @@ describe("KML parsing", () => {
   it("ignores placemarks with no supported geometry", () => {
     const doc = parse("<kml><Placemark><name>Empty</name></Placemark></kml>");
     expect(parseKmlFeatures(doc)).toHaveLength(0);
+  });
+});
+
+describe("minutesSince", () => {
+  const now = Date.parse("2026-05-31T12:00:00.000Z");
+
+  it("returns whole minutes elapsed", () => {
+    expect(minutesSince("2026-05-31T11:30:00.000Z", now)).toBe(30);
+  });
+
+  it("never returns a negative value for future stamps", () => {
+    expect(minutesSince("2026-05-31T12:30:00.000Z", now)).toBe(0);
+  });
+
+  it("returns null for missing or invalid input", () => {
+    expect(minutesSince("", now)).toBeNull();
+    expect(minutesSince(null, now)).toBeNull();
+    expect(minutesSince("not-a-date", now)).toBeNull();
+  });
+});
+
+describe("isResourceStale", () => {
+  const now = Date.parse("2026-05-31T12:00:00.000Z");
+  const threshold = 30 * 60 * 1000;
+
+  it("flags resources older than the threshold", () => {
+    expect(isResourceStale({ updatedAt: "2026-05-31T11:00:00.000Z" }, now, threshold)).toBe(true);
+  });
+
+  it("does not flag recently updated resources", () => {
+    expect(isResourceStale({ updatedAt: "2026-05-31T11:45:00.000Z" }, now, threshold)).toBe(false);
+  });
+
+  it("treats a missing stamp as not stale", () => {
+    expect(isResourceStale({ name: "No stamp" }, now, threshold)).toBe(false);
+    expect(isResourceStale(null, now, threshold)).toBe(false);
+  });
+});
+
+describe("buildActivityLine", () => {
+  it("formats an event with detail", () => {
+    expect(
+      buildActivityLine({ at: "2026-05-31T12:00:00.000Z", kind: "STATUS", resourceName: "GT-1", detail: "Available → Onscene" })
+    ).toBe("2026-05-31T12:00:00.000Z — STATUS: GT-1 (Available → Onscene)");
+  });
+
+  it("omits the detail parenthetical when absent", () => {
+    expect(buildActivityLine({ at: "t", kind: "ADD", resourceName: "Air 1" })).toBe("t — ADD: Air 1");
+  });
+
+  it("falls back to safe defaults", () => {
+    expect(buildActivityLine(null)).toBe(" — EVENT: Resource");
+  });
+});
+
+describe("haversineMeters / trailDistanceMeters", () => {
+  it("measures a short hop within tolerance", () => {
+    const meters = haversineMeters({ lat: 29.7604, lng: -95.3698 }, { lat: 29.7614, lng: -95.3698 });
+    expect(meters).toBeGreaterThan(100);
+    expect(meters).toBeLessThan(125);
+  });
+
+  it("returns 0 for degenerate input", () => {
+    expect(haversineMeters(null, { lat: 1, lng: 1 })).toBe(0);
+    expect(trailDistanceMeters([{ lat: 1, lng: 1 }])).toBe(0);
+    expect(trailDistanceMeters([])).toBe(0);
+  });
+
+  it("sums an ordered trail", () => {
+    const points = [
+      { lat: 29.7604, lng: -95.3698 },
+      { lat: 29.7614, lng: -95.3698 },
+      { lat: 29.7624, lng: -95.3698 }
+    ];
+    expect(trailDistanceMeters(points)).toBeGreaterThan(200);
+  });
+});
+
+describe("resourceCounts", () => {
+  it("groups resources by type", () => {
+    const counts = resourceCounts([
+      { type: "Air" },
+      { type: "Air" },
+      { type: "Vehicle" },
+      { notype: true }
+    ]);
+    expect(counts).toEqual({ Air: 2, Vehicle: 1, Unknown: 1 });
+  });
+
+  it("tolerates non-array input", () => {
+    expect(resourceCounts(null)).toEqual({});
+  });
+});
+
+describe("buildIcs203Rows", () => {
+  const positions = ["Incident Commander", "Safety Officer"];
+  const people = [{ id: "p1", name: "Jordan Lee", capid: "445001" }];
+
+  it("resolves assigned people and blanks unfilled slots", () => {
+    const rows = buildIcs203Rows(positions, { "Incident Commander": "p1" }, people);
+    expect(rows).toEqual([
+      { position: "Incident Commander", name: "Jordan Lee", capid: "445001" },
+      { position: "Safety Officer", name: "", capid: "" }
+    ]);
+  });
+
+  it("tolerates missing slots/people", () => {
+    const rows = buildIcs203Rows(positions, null, null);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual({ position: "Incident Commander", name: "", capid: "" });
   });
 });

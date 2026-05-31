@@ -50,9 +50,11 @@
         <button id="clearResourcesPeopleBtn" class="button secondary viewer-hide" type="button">Clear Resources + People</button>
         <button id="openDashboardBtn" class="button secondary" type="button">Dashboard</button>
         <button id="shareLiveBtn" class="button secondary viewer-hide" type="button">Share Live Link</button>
+        <button id="shareEditableBtn" class="button secondary viewer-hide" type="button">Share Editable Link</button>
         <button id="showDisclaimerBtn" class="button secondary" type="button">Disclaimer</button>
       </div>
       <p id="liveStatus" class="live-status" hidden></p>
+      <p id="livePeers" class="live-peers" hidden></p>
     </div>
   </header>
   <main class="container tool-shell">
@@ -66,13 +68,14 @@
         <button class="tool-tab" data-tool="crewstaffing" type="button" role="tab" aria-selected="false">Crew Staffing</button>
         <button class="tool-tab" data-tool="assignmentboard" type="button" role="tab" aria-selected="false">Assignment Board</button>
         <button class="tool-tab" data-tool="fieldnotes" type="button" role="tab" aria-selected="false">Field Notes</button>
+        <button class="tool-tab" data-tool="activity" type="button" role="tab" aria-selected="false">Activity</button>
         <button class="tool-tab" data-tool="command" type="button" role="tab" aria-selected="false">Command</button>
       </div>
     </section>
 
     <section id="opswatchApp" class="main-grid tool-panel active" role="tabpanel">
     <section class="panel"><div class="panel-heading"><h2>Add Resource</h2><p>Use coordinates for map icons (Ground, sUAS, Air, and Vehicles). Air resources need a tail number, and vehicles need a vehicle number.</p></div><form id="resourceForm" class="resource-form"><label>Resource Type<select id="resourceType" required><option value="Ground">Ground</option><option value="sUAS">sUAS</option><option value="Air">Air</option><option value="Vehicle">Vehicle</option><option value="Incident Command Post">Incident Command Post</option><option value="Staging Area">Staging Area</option></select></label><label>Resource Name<input id="resourceName" type="text" placeholder="Ground Team 1, Drone Team Alpha, CAP Aircraft" required /></label><label>Crew<input id="resourceCrew" type="text" placeholder="Names or team assigned to this resource" /></label><div id="mapFields"><label>Map Label<input id="resourceLabel" type="text" placeholder="GT-1 or UAS-A" /></label><div class="two-column"><label>Latitude<input id="latitude" type="number" step="any" placeholder="29.7604" required /></label><label>Longitude<input id="longitude" type="number" step="any" placeholder="-95.3698" required /></label></div><button id="useLocationBtn" class="button secondary full-width" type="button">Use My Current Location</button></div><div id="airFields" class="hidden"><label>Tail Number / Registration<input id="tailNumber" type="text" placeholder="N12345" /></label></div><div id="vehicleFields" class="hidden"><label>Vehicle Number<input id="vehicleNumber" type="text" placeholder="Unit 42" /></label></div><label>Status<select id="status"><option>Available</option><option>Assigned</option><option>Enroute</option><option>Onscene</option><option>Offline</option></select></label><label>Notes<textarea id="notes" placeholder="Assignment, comms, sortie, operator, staging location, or other details"></textarea></label><button id="resourceSubmitBtn" class="button primary full-width" type="submit">Add Resource</button><button id="resourceCancelEditBtn" class="button secondary full-width hidden" type="button">Cancel Edit</button></form></section>
-    <section class="workspace"><section class="panel"><div class="toolbar"><div><h2>Map Board</h2><p>All resources appear here. Drag any icon to update its current location.</p></div><div class="filters" aria-label="Resource filters"><button class="filter active" data-filter="All" type="button">All</button><button class="filter" data-filter="Ground" type="button">Ground</button><button class="filter" data-filter="sUAS" type="button">sUAS</button><button class="filter" data-filter="Air" type="button">Air</button><button class="filter" data-filter="Vehicle" type="button">Vehicle</button></div></div><div class="map-actions"><button id="drawRadiusBtn" class="button secondary" type="button">Draw Radius</button><button id="clearRadiiBtn" class="button secondary" type="button">Clear Radii</button><label class="button secondary file-button">Upload KML<input id="kmlInput" type="file" accept=".kml,application/vnd.google-earth.kml+xml,application/xml,text/xml" /></label><button id="clearKmlBtn" class="button secondary" type="button">Clear KML</button></div><div id="map"></div></section>
+    <section class="workspace"><section class="panel"><div class="toolbar"><div><h2>Map Board</h2><p>All resources appear here. Drag any icon to update its current location.</p></div><div class="filters" aria-label="Resource filters"><button class="filter active" data-filter="All" type="button">All</button><button class="filter" data-filter="Ground" type="button">Ground</button><button class="filter" data-filter="sUAS" type="button">sUAS</button><button class="filter" data-filter="Air" type="button">Air</button><button class="filter" data-filter="Vehicle" type="button">Vehicle</button></div></div><div class="map-actions"><button id="drawRadiusBtn" class="button secondary" type="button">Draw Radius</button><button id="clearRadiiBtn" class="button secondary" type="button">Clear Radii</button><label class="button secondary file-button">Upload KML<input id="kmlInput" type="file" accept=".kml,application/vnd.google-earth.kml+xml,application/xml,text/xml" /></label><button id="clearKmlBtn" class="button secondary" type="button">Clear KML</button><button id="trackMeBtn" class="button secondary viewer-hide" type="button">Track Me</button><button id="clearTrailBtn" class="button secondary viewer-hide" type="button">Clear Trail</button></div><div id="map"></div></section>
       <section class="panel"><div class="toolbar"><div><h2>Resource List</h2><p id="resourceCount">0 resources</p></div><label class="search-label"><span class="sr-only">Search resources</span><input id="searchInput" type="search" placeholder="Search resources" /></label></div><div id="resourceList" class="resource-list"></div></section></section>
       </section>
 
@@ -140,6 +143,22 @@
       </section>
     </section>
 
+    <section id="activityApp" class="panel tool-panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <div>
+          <h2>Activity Log</h2>
+          <p>Automatic, timestamped history of resource adds, edits, status changes, moves, and removals. Suitable for an ICS-214 unit log.</p>
+        </div>
+        <div class="header-actions">
+          <button id="activityExportBtn" class="button secondary" type="button">Export JSON</button>
+          <button id="activityIcs214Btn" class="button secondary" type="button">Print ICS-214</button>
+          <button id="activityClearBtn" class="button secondary viewer-hide" type="button">Clear Log</button>
+        </div>
+      </div>
+      <p id="activityCount" class="tool-panel-lede">0 events recorded</p>
+      <div id="activityList" class="activity-list"></div>
+    </section>
+
     <section id="commandApp" class="panel tool-panel" role="tabpanel" hidden>
       <div class="toolbar">
         <div>
@@ -151,7 +170,17 @@
         <article class="command-kpi"><h3>People Signed In</h3><p id="commandPeopleCount">0</p></article>
         <article class="command-kpi"><h3>Vehicles</h3><p id="commandVehicleCount">0</p></article>
         <article class="command-kpi"><h3>Aircraft</h3><p id="commandAircraftCount">0</p></article>
+        <article class="command-kpi"><h3>Check-in Overdue</h3><p id="commandStaleCount">0</p></article>
       </div>
+      <section class="panel">
+        <h3>Printable ICS Forms</h3>
+        <p>Generate print/PDF-ready ICS documents from the current workspace data.</p>
+        <div class="header-actions">
+          <button id="ics201Btn" class="button secondary" type="button">ICS-201 Incident Briefing</button>
+          <button id="ics203Btn" class="button secondary" type="button">ICS-203 Org Assignment</button>
+          <button id="ics214Btn" class="button secondary" type="button">ICS-214 Activity Log</button>
+        </div>
+      </section>
       <section class="panel">
         <h3>Dashboard Red Banner</h3>
         <div class="command-banner-controls">

@@ -112,6 +112,93 @@
     });
   }
 
+  // Minutes elapsed since an ISO timestamp, or null when the stamp is missing
+  // or unparseable. `nowMs` is injectable so callers (and tests) stay pure.
+  function minutesSince(iso, nowMs) {
+    if (!iso) return null;
+    const then = new Date(iso).getTime();
+    if (!Number.isFinite(then)) return null;
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    return Math.max(0, Math.floor((now - then) / 60000));
+  }
+
+  // A resource is "stale" (check-in overdue) when it carries an updatedAt stamp
+  // that is older than the threshold. Resources without a stamp are treated as
+  // unknown rather than stale, so imported/seed data doesn't spam warnings.
+  function isResourceStale(resource, nowMs, thresholdMs) {
+    const source = resource && typeof resource === "object" ? resource : {};
+    if (!source.updatedAt) return false;
+    const then = new Date(source.updatedAt).getTime();
+    if (!Number.isFinite(then)) return false;
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    const threshold = Number.isFinite(thresholdMs) ? thresholdMs : 30 * 60 * 1000;
+    return now - then > threshold;
+  }
+
+  // One human-readable line for an activity-log event, used by the Activity
+  // tab and the ICS-214 export. Built from the stored ISO string so it stays
+  // deterministic (and unit-testable) regardless of locale/timezone.
+  function buildActivityLine(event) {
+    const source = event && typeof event === "object" ? event : {};
+    const when = source.at || "";
+    const kind = source.kind || "EVENT";
+    const name = source.resourceName || "Resource";
+    const detail = source.detail ? ` (${source.detail})` : "";
+    return `${when} — ${kind}: ${name}${detail}`;
+  }
+
+  // Great-circle distance in meters between two { lat, lng } points. Used to
+  // total up GPS breadcrumb trails.
+  function haversineMeters(a, b) {
+    if (!a || !b) return 0;
+    const R = 6371000;
+    const toRad = deg => (Number(deg) * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  // Total length in meters of an ordered list of { lat, lng } trail points.
+  function trailDistanceMeters(points) {
+    if (!Array.isArray(points) || points.length < 2) return 0;
+    let total = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      total += haversineMeters(points[i - 1], points[i]);
+    }
+    return total;
+  }
+
+  // Resource counts grouped by type, used by the Command snapshot and ICS-201.
+  function resourceCounts(resources) {
+    const list = Array.isArray(resources) ? resources : [];
+    return list.reduce((counts, resource) => {
+      const type = (resource && resource.type) || "Unknown";
+      counts[type] = (counts[type] || 0) + 1;
+      return counts;
+    }, {});
+  }
+
+  // Rows for an ICS-203 Organization Assignment List: one entry per position,
+  // with the assigned person resolved from the slot map (blank when unfilled).
+  function buildIcs203Rows(positions, slots, people) {
+    const slotMap = slots && typeof slots === "object" ? slots : {};
+    const roster = Array.isArray(people) ? people : [];
+    return (Array.isArray(positions) ? positions : []).map(position => {
+      const personId = slotMap[position] || "";
+      const person = roster.find(item => item && item.id === personId);
+      return {
+        position,
+        name: person ? person.name : "",
+        capid: person ? person.capid : ""
+      };
+    });
+  }
+
   const api = {
     escapeHtml,
     slug,
@@ -122,7 +209,14 @@
     normalizeResource,
     resourceIconSpec,
     extractCoordinates,
-    parseKmlFeatures
+    parseKmlFeatures,
+    minutesSince,
+    isResourceStale,
+    buildActivityLine,
+    haversineMeters,
+    trailDistanceMeters,
+    resourceCounts,
+    buildIcs203Rows
   };
 
   if (typeof module !== "undefined" && module.exports) {

@@ -1,7 +1,13 @@
 const STORAGE_KEY = "romans-resource-tracker-v1";
 const RADII_STORAGE_KEY = "romans-resource-radii-v1";
+const ACTIVITY_LOG_STORAGE_KEY = "romans-activity-log-v1";
+const BREADCRUMB_STORAGE_KEY = "romans-breadcrumb-v1";
+const LIVE_IDENTITY_STORAGE_KEY = "romans-live-identity-v1";
 const WMIRS_DISCLAIMER_ACK_KEY = "romans-wmirs-disclaimer-ack-v1";
 const RESOURCE_STATUSES = ["Available", "Assigned", "Enroute", "Onscene", "Offline"];
+const STALE_THRESHOLD_MS = 30 * 60 * 1000;
+const ACTIVITY_LOG_LIMIT = 500;
+const BREADCRUMB_LIMIT = 1000;
 
 const TYPE_COLORS = {
   Ground: "#2563eb",
@@ -64,6 +70,12 @@ let applyingLiveSync = false;
 let receivedRemoteLiveState = false;
 let isLiveViewer = false;
 let liveSessionPassword = "";
+let activityLog = loadActivityLog();
+let staleMonitorId = null;
+let storageWarned = false;
+let trackWatchId = null;
+let breadcrumb = loadBreadcrumb();
+let breadcrumbLayer = null;
 
 const els = {
   form: document.getElementById("resourceForm"),
@@ -90,7 +102,11 @@ const els = {
   importInput: document.getElementById("importInput"),
   openDashboardBtn: document.getElementById("openDashboardBtn"),
   shareLiveBtn: document.getElementById("shareLiveBtn"),
+  shareEditableBtn: document.getElementById("shareEditableBtn"),
   liveStatus: document.getElementById("liveStatus"),
+  livePeers: document.getElementById("livePeers"),
+  trackMeBtn: document.getElementById("trackMeBtn"),
+  clearTrailBtn: document.getElementById("clearTrailBtn"),
   showDisclaimerBtn: document.getElementById("showDisclaimerBtn"),
   seedDemoDataBtn: document.getElementById("seedDemoDataBtn"),
   clearResourcesPeopleBtn: document.getElementById("clearResourcesPeopleBtn"),
@@ -130,12 +146,18 @@ document.addEventListener("DOMContentLoaded", () => {
   bindCrewStaffingControls();
   bindAssignmentBoardControls();
   bindFieldNotesControls();
+  bindActivityControls();
+  bindIcsControls();
+  bindTrackingControls();
   loadAssignmentPeople();
   render();
   renderAssignmentBoard();
   renderFieldNotes();
   bindCommandControls();
   renderCommandPanel();
+  renderActivityLog();
+  renderBreadcrumb();
+  startStaleMonitor();
 });
 
 function initWmirsDisclaimer() {
@@ -195,16 +217,19 @@ function setActiveTool(tool) {
   const crewStaffingActive = tool === "crewstaffing";
   const assignmentBoardActive = tool === "assignmentboard";
   const fieldNotesActive = tool === "fieldnotes";
+  const activityActive = tool === "activity";
   const commandActive = tool === "command";
   els.opswatchPanel.classList.toggle("active", opswatchActive);
   els.crewStaffingPanel.classList.toggle("active", crewStaffingActive);
   els.assignmentBoardPanel.classList.toggle("active", assignmentBoardActive);
   els.fieldNotesPanel.classList.toggle("active", fieldNotesActive);
+  els.activityPanel?.classList.toggle("active", activityActive);
   els.commandPanel.classList.toggle("active", commandActive);
   els.opswatchPanel.hidden = !opswatchActive;
   els.crewStaffingPanel.hidden = !crewStaffingActive;
   els.assignmentBoardPanel.hidden = !assignmentBoardActive;
   els.fieldNotesPanel.hidden = !fieldNotesActive;
+  if (els.activityPanel) els.activityPanel.hidden = !activityActive;
   els.commandPanel.hidden = !commandActive;
 
   els.toolTabs.forEach(button => {
@@ -241,7 +266,8 @@ function bindEvents() {
   els.importInput.addEventListener("change", importJson);
   els.showDisclaimerBtn?.addEventListener("click", showWmirsDisclaimer);
   els.openDashboardBtn?.addEventListener("click", openDashboardWindow);
-  els.shareLiveBtn?.addEventListener("click", shareLiveLink);
+  els.shareLiveBtn?.addEventListener("click", () => shareLiveLink({ editable: false }));
+  els.shareEditableBtn?.addEventListener("click", () => shareLiveLink({ editable: true }));
   els.seedDemoDataBtn?.addEventListener("click", seedDemoData);
   els.clearResourcesPeopleBtn?.addEventListener("click", clearResourcesAndPeople);
   els.copySummaryBtn.addEventListener("click", copySummary);
@@ -271,9 +297,19 @@ function initLiveSync() {
   if (liveSessionPassword) options.password = liveSessionPassword;
   liveSyncProvider = new window.WebrtcProvider(roomId, ydoc, options);
 
-  liveSyncMap.observe(() => {
-    const payload = liveSyncMap.get("payload");
-    if (!payload || typeof payload !== "object") return;
+  // State is stored as individual keys on the shared map (one per workspace
+  // section) rather than a single blob. With last-writer-wins applied per key,
+  // two editors touching different sections (say resources vs. field notes)
+  // no longer clobber each other's work.
+  liveSyncMap.observe(event => {
+    const payload = {};
+    let sawState = false;
+    event.keysChanged.forEach(key => {
+      if (key === "updatedAt") return;
+      payload[key] = liveSyncMap.get(key);
+      sawState = true;
+    });
+    if (!sawState) return;
     receivedRemoteLiveState = true;
     applyingLiveSync = true;
     applyLiveState(payload);
@@ -283,6 +319,7 @@ function initLiveSync() {
   const awareness = liveSyncProvider.awareness;
   if (awareness) {
     awareness.setLocalStateField("role", isLiveViewer ? "viewer" : "editor");
+    awareness.setLocalStateField("name", isLiveViewer ? "" : loadLiveIdentity().name);
     awareness.on("change", updateLiveStatus);
   }
   liveSyncProvider.on("status", updateLiveStatus);
@@ -315,14 +352,30 @@ function updateLiveStatus() {
   if (!liveSyncProvider) {
     els.liveStatus.textContent = "";
     els.liveStatus.hidden = true;
+    if (els.livePeers) els.livePeers.hidden = true;
     return;
   }
   const awareness = liveSyncProvider.awareness;
-  const peers = awareness ? Math.max(awareness.getStates().size - 1, 0) : 0;
+  const states = awareness ? Array.from(awareness.getStates().entries()) : [];
+  const localId = awareness ? awareness.clientID : null;
+  const others = states.filter(([id]) => id !== localId).map(([, state]) => state || {});
+  const peers = others.length;
+  const editors = others.filter(state => state.role === "editor").length;
   const connected = liveSyncProvider.connected;
   const role = isLiveViewer ? "Viewing" : "Sharing";
   els.liveStatus.hidden = false;
-  els.liveStatus.textContent = `● Live ${role} · ${peers} other${peers === 1 ? "" : "s"} connected${connected ? "" : " (connecting…)"}`;
+  els.liveStatus.textContent = `● Live ${role} · ${peers} other${peers === 1 ? "" : "s"} connected${editors ? ` (${editors} editing)` : ""}${connected ? "" : " · connecting…"}`;
+
+  if (els.livePeers) {
+    const labels = others
+      .map(state => {
+        const name = state.name || (state.role === "viewer" ? "Viewer" : "Editor");
+        return state.role === "viewer" ? `${name} (view)` : name;
+      })
+      .filter(Boolean);
+    els.livePeers.hidden = labels.length === 0;
+    els.livePeers.textContent = labels.length ? `Connected: ${labels.join(", ")}` : "";
+  }
 }
 
 function applyLiveState(payload) {
@@ -337,6 +390,7 @@ function applyLiveState(payload) {
   if (payload.commandStatuses && typeof payload.commandStatuses === "object") commandStatuses = payload.commandStatuses;
   if (payload.commandBanner && typeof payload.commandBanner === "object") commandBanner = payload.commandBanner;
   if (payload.commandObjectives && typeof payload.commandObjectives === "object") commandObjectives = payload.commandObjectives;
+  if (Array.isArray(payload.activityLog)) activityLog = payload.activityLog;
 
   writeJson(STORAGE_KEY, resources);
   writeJson(RADII_STORAGE_KEY, radii);
@@ -346,15 +400,17 @@ function applyLiveState(payload) {
   writeJson(COMMAND_STORAGE_KEY, commandStatuses);
   writeJson(`${COMMAND_STORAGE_KEY}-banner`, commandBanner);
   writeJson(`${COMMAND_STORAGE_KEY}-objectives`, commandObjectives);
+  writeJson(ACTIVITY_LOG_STORAGE_KEY, activityLog);
   render();
   renderAssignmentBoard();
   renderFieldNotes();
   renderCommandPanel();
+  renderActivityLog();
 }
 
 function publishLiveState() {
   if (!liveSyncMap || applyingLiveSync || isLiveViewer) return;
-  liveSyncMap.set("payload", {
+  const snapshot = {
     resources,
     radii,
     assignmentPeople,
@@ -364,15 +420,22 @@ function publishLiveState() {
     commandStatuses,
     commandBanner,
     commandObjectives,
-    updatedAt: Date.now()
+    activityLog
+  };
+  // One transaction so peers see a single, atomic update per publish.
+  liveSyncMap.doc.transact(() => {
+    Object.entries(snapshot).forEach(([key, value]) => liveSyncMap.set(key, value));
+    liveSyncMap.set("updatedAt", Date.now());
   });
 }
 
-async function shareLiveLink() {
+async function shareLiveLink({ editable = false } = {}) {
   if (isLiveViewer) {
     alert("This is a read-only viewer session, so it cannot start a new share.");
     return;
   }
+
+  if (editable) promptForLiveIdentity();
 
   const url = new URL(window.location.href);
   if (!url.searchParams.get("live")) {
@@ -386,19 +449,39 @@ async function shareLiveLink() {
   }
   publishLiveState();
 
-  // Hand out a read-only viewer link; the host page keeps editing rights.
-  const viewerUrl = new URL(url.toString());
-  viewerUrl.searchParams.set("view", "1");
-  if (liveSessionPassword) viewerUrl.hash = `k=${liveSessionPassword}`;
-  const shareUrl = viewerUrl.toString();
+  // Editable links open as co-editors (no view flag); the default link is a
+  // read-only viewer. Either way the host keeps full editing rights.
+  const shareUrlObj = new URL(url.toString());
+  if (editable) shareUrlObj.searchParams.delete("view");
+  else shareUrlObj.searchParams.set("view", "1");
+  if (liveSessionPassword) shareUrlObj.hash = `k=${liveSessionPassword}`;
+  const shareUrl = shareUrlObj.toString();
+
+  const message = editable
+    ? "Editable live link copied. Anyone with this link can edit the board with you in real time."
+    : "Read-only live link copied. Anyone with this link can watch your board update in real time.";
 
   try {
     await navigator.clipboard.writeText(shareUrl);
-    alert("Read-only live link copied. Anyone with this link can watch your board update in real time.");
+    alert(message);
   } catch {
-    window.prompt("Copy this read-only live link:", shareUrl);
+    window.prompt("Copy this live link:", shareUrl);
   }
   updateLiveStatus();
+}
+
+function loadLiveIdentity() {
+  const saved = readJson(LIVE_IDENTITY_STORAGE_KEY, {});
+  return { name: saved && typeof saved === "object" ? String(saved.name || "") : "" };
+}
+
+function promptForLiveIdentity() {
+  const current = loadLiveIdentity().name;
+  const name = window.prompt("Your name or callsign (shown to other editors):", current);
+  if (name === null) return;
+  writeJson(LIVE_IDENTITY_STORAGE_KEY, { name: name.trim() });
+  const awareness = liveSyncProvider?.awareness;
+  if (awareness && !isLiveViewer) awareness.setLocalStateField("name", name.trim());
 }
 
 function showWmirsDisclaimer() {
@@ -535,7 +618,8 @@ function addResource(event) {
     return;
   }
 
-  if (editingResourceId) {
+  const wasEditing = Boolean(editingResourceId);
+  if (wasEditing) {
     const index = resources.findIndex(item => item.id === editingResourceId);
     if (index !== -1) resources[index] = resource;
     else resources.push(resource);
@@ -543,6 +627,7 @@ function addResource(event) {
     resources.push(resource);
   }
 
+  logActivity(wasEditing ? "EDIT" : "ADD", resource, `${resource.type} · ${resource.status}`);
   saveResources();
   exitEditMode();
   render();
@@ -628,6 +713,10 @@ function renderList(visible) {
     const badges = card.querySelector(".badges");
     badges.appendChild(makeBadge(resource.type, "type"));
     badges.appendChild(makeBadge(resource.status, `status-${slug(resource.status)}`));
+    if (isResourceStale(resource, Date.now(), STALE_THRESHOLD_MS)) {
+      const mins = minutesSince(resource.updatedAt, Date.now());
+      badges.appendChild(makeBadge(`Check-in overdue${mins != null ? ` · ${mins} min` : ""}`, "stale"));
+    }
 
     card.querySelector("h3").textContent = resource.name;
     card.querySelector(".resource-notes").textContent = resource.notes || "No notes entered.";
@@ -689,6 +778,7 @@ function renderList(visible) {
 function renderMap(visible) {
   markersLayer.clearLayers();
   renderRadii();
+  renderBreadcrumb();
   const mapResources = visible.filter(resource => Number.isFinite(Number(resource.lat)) && Number.isFinite(Number(resource.lng)));
   if (!mapResources.length) {
     if (userCoords) map.setView([Number(userCoords.lat), Number(userCoords.lng)], 12);
@@ -708,6 +798,7 @@ function renderMap(visible) {
       resource.lng = Number(point.lng.toFixed(6));
       resource.updatedAt = new Date().toISOString();
       lastBoundsKey = null;
+      logActivity("MOVE", resource, `${resource.lat}, ${resource.lng}`);
       saveResources();
       renderList(getVisibleResources());
     });
@@ -838,14 +929,18 @@ function updateResourceStatus(id, status) {
   const resource = resources.find(item => item.id === id);
   if (!resource || !RESOURCE_STATUSES.includes(status)) return;
 
+  const previous = resource.status;
   resource.status = status;
   resource.updatedAt = new Date().toISOString();
+  logActivity("STATUS", resource, `${previous} → ${status}`);
   saveResources();
   render();
 }
 
 function removeResource(id) {
-  resources = resources.filter(resource => resource.id !== id);
+  const resource = resources.find(item => item.id === id);
+  resources = resources.filter(item => item.id !== id);
+  if (resource) logActivity("REMOVE", resource, resource.type);
   if (editingResourceId === id) exitEditMode();
   saveResources();
   render();
@@ -1041,7 +1136,40 @@ function readJson(key, fallback) {
 }
 
 function writeJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    // Most commonly a full-storage quota error: surface it once instead of
+    // letting saves fail silently and lose data during an incident.
+    const quota = error && (error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014);
+    if (quota) warnStorageFull();
+    else notify("Could not save to browser storage. Export your data to avoid losing it.", "error");
+    return false;
+  }
+}
+
+function warnStorageFull() {
+  if (storageWarned) return;
+  storageWarned = true;
+  notify("Browser storage is full. Export your data (JSON) now to avoid losing changes, then clear old or unused data.", "error", 12000);
+}
+
+// Lightweight, non-blocking toast. Used for storage/tracking/live notices where
+// a modal alert() would interrupt operational work.
+function notify(message, type = "info", timeout = 6000) {
+  let host = document.getElementById("toastHost");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "toastHost";
+    host.className = "toast-host";
+    document.body.appendChild(host);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  host.appendChild(toast);
+  window.setTimeout(() => toast.remove(), timeout);
 }
 
 function loadResources() {
@@ -1270,7 +1398,17 @@ Object.assign(els, {
   commandBannerEnabled: document.getElementById("commandBannerEnabled"),
   commandObjectivePrimary: document.getElementById("commandObjectivePrimary"),
   commandObjectiveSecondary: document.getElementById("commandObjectiveSecondary"),
-  commandObjectiveTertiary: document.getElementById("commandObjectiveTertiary")
+  commandObjectiveTertiary: document.getElementById("commandObjectiveTertiary"),
+  commandStaleCount: document.getElementById("commandStaleCount"),
+  activityPanel: document.getElementById("activityApp"),
+  activityList: document.getElementById("activityList"),
+  activityCount: document.getElementById("activityCount"),
+  activityExportBtn: document.getElementById("activityExportBtn"),
+  activityIcs214Btn: document.getElementById("activityIcs214Btn"),
+  activityClearBtn: document.getElementById("activityClearBtn"),
+  ics201Btn: document.getElementById("ics201Btn"),
+  ics203Btn: document.getElementById("ics203Btn"),
+  ics214Btn: document.getElementById("ics214Btn")
 });
 
 
@@ -1441,6 +1579,10 @@ function renderCommandPanel() {
   els.commandPeopleCount.textContent = String(assignmentPeople.length);
   els.commandVehicleCount.textContent = String(resources.filter(resource => resource.type === "Vehicle").length);
   els.commandAircraftCount.textContent = String(resources.filter(resource => resource.type === "Air").length);
+  if (els.commandStaleCount) {
+    const now = Date.now();
+    els.commandStaleCount.textContent = String(resources.filter(resource => isResourceStale(resource, now, STALE_THRESHOLD_MS)).length);
+  }
   els.commandStatusList.innerHTML = "";
   IMT_POSITIONS.forEach(position => {
     const personId = assignmentSlots[position] || "";
@@ -1666,4 +1808,294 @@ function saveFieldNoteAuthor() {
     name: els.fieldNoteName?.value.trim() || "",
     role: els.fieldNoteRole?.value.trim() || ""
   });
+}
+
+/* ---------------------------------------------------------------------------
+ * Stale-resource monitor
+ * Re-evaluates check-in staleness on a timer so badges, the relative "updated"
+ * times, and the Command count stay current without an explicit user action.
+ * ------------------------------------------------------------------------- */
+function startStaleMonitor() {
+  if (staleMonitorId) return;
+  staleMonitorId = window.setInterval(() => {
+    renderList(getVisibleResources());
+    renderCommandPanel();
+  }, 60000);
+}
+
+/* ---------------------------------------------------------------------------
+ * Activity log (ICS-214 style)
+ * ------------------------------------------------------------------------- */
+function loadActivityLog() {
+  const saved = readJson(ACTIVITY_LOG_STORAGE_KEY, []);
+  return Array.isArray(saved) ? saved : [];
+}
+
+function saveActivityLog() {
+  writeJson(ACTIVITY_LOG_STORAGE_KEY, activityLog);
+  publishLiveState();
+}
+
+function logActivity(kind, resource, detail) {
+  const source = resource && typeof resource === "object" ? resource : {};
+  activityLog.unshift({
+    id: crypto.randomUUID(),
+    at: new Date().toISOString(),
+    kind,
+    resourceId: source.id || "",
+    resourceName: source.name || source.label || "Resource",
+    type: source.type || "",
+    detail: detail || ""
+  });
+  if (activityLog.length > ACTIVITY_LOG_LIMIT) activityLog.length = ACTIVITY_LOG_LIMIT;
+  saveActivityLog();
+  renderActivityLog();
+}
+
+function bindActivityControls() {
+  els.activityExportBtn?.addEventListener("click", exportActivityLog);
+  els.activityIcs214Btn?.addEventListener("click", () => printIcsForm("214"));
+  els.activityClearBtn?.addEventListener("click", clearActivityLog);
+}
+
+function renderActivityLog() {
+  if (!els.activityList || !els.activityCount) return;
+  els.activityList.innerHTML = "";
+
+  if (!activityLog.length) {
+    els.activityList.innerHTML = '<p class="empty-state">No activity recorded yet. Add, move, or update a resource to start the log.</p>';
+  }
+
+  activityLog.forEach(entry => {
+    const card = document.createElement("article");
+    card.className = "activity-item";
+    const time = entry.at ? new Date(entry.at).toLocaleString() : "";
+    const detail = entry.detail ? `<span class="activity-detail">${escapeHtml(entry.detail)}</span>` : "";
+    card.innerHTML = `<span class="badge activity-kind kind-${slug(entry.kind || "event")}">${escapeHtml(entry.kind || "EVENT")}</span><div class="activity-body"><strong>${escapeHtml(entry.resourceName || "Resource")}</strong>${detail}<span class="activity-time">${escapeHtml(time)}</span></div>`;
+    els.activityList.appendChild(card);
+  });
+
+  els.activityCount.textContent = `${activityLog.length} event${activityLog.length === 1 ? "" : "s"} recorded`;
+}
+
+function exportActivityLog() {
+  const payload = { exportedAt: new Date().toISOString(), activityLog };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `activity-log-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function clearActivityLog() {
+  if (!activityLog.length) return;
+  if (!window.confirm("Clear the entire activity log? Export it first if you need an ICS-214 record.")) return;
+  activityLog = [];
+  saveActivityLog();
+  renderActivityLog();
+}
+
+/* ---------------------------------------------------------------------------
+ * Printable ICS forms (201 / 203 / 214)
+ * ------------------------------------------------------------------------- */
+function bindIcsControls() {
+  els.ics201Btn?.addEventListener("click", () => printIcsForm("201"));
+  els.ics203Btn?.addEventListener("click", () => printIcsForm("203"));
+  els.ics214Btn?.addEventListener("click", () => printIcsForm("214"));
+}
+
+function incidentHeaderHtml(formTitle) {
+  const incident = loadCrewStaffingIncident();
+  const rows = [
+    ["Incident Name", incident.incidentName],
+    ["Mission Number", incident.missionNumber],
+    ["Operational Period", incident.operationalPeriod],
+    ["Prepared By", incident.preparedBy]
+  ]
+    .map(([label, value]) => `<div><span class="ics-label">${escapeHtml(label)}</span><span class="ics-value">${escapeHtml(value || "—")}</span></div>`)
+    .join("");
+  return `<header class="ics-header"><h1>${escapeHtml(formTitle)}</h1><div class="ics-meta">${rows}</div><p class="ics-generated">Generated: ${escapeHtml(new Date().toLocaleString())}</p></header>`;
+}
+
+function printIcsForm(kind) {
+  if (kind === "201") return openPrintWindow("ICS-201 Incident Briefing", buildIcs201Body());
+  if (kind === "203") return openPrintWindow("ICS-203 Organization Assignment List", buildIcs203Body());
+  if (kind === "214") return openPrintWindow("ICS-214 Activity Log", buildIcs214Body());
+}
+
+function buildIcs201Body() {
+  const counts = resourceCounts(resources);
+  const countLine = Object.keys(counts).length
+    ? Object.entries(counts).map(([type, n]) => `${escapeHtml(type)}: ${n}`).join(" · ")
+    : "No resources entered.";
+  const objectives = [
+    ["Primary", commandObjectives.primary],
+    ["Secondary", commandObjectives.secondary],
+    ["Tertiary", commandObjectives.tertiary]
+  ].filter(([, value]) => value);
+  const objectivesHtml = objectives.length
+    ? `<ul>${objectives.map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`).join("")}</ul>`
+    : "<p>No operational objectives entered.</p>";
+
+  const rows = resources.length
+    ? resources
+        .map(resource => {
+          const ident = resource.type === "Air" ? resource.tail : resource.type === "Vehicle" ? resource.vehicleNumber : resource.label;
+          const location = Number.isFinite(Number(resource.lat)) ? `${resource.lat}, ${resource.lng}` : "—";
+          return `<tr><td>${escapeHtml(resource.type)}</td><td>${escapeHtml(resource.name)}</td><td>${escapeHtml(ident || "—")}</td><td>${escapeHtml(resource.status)}</td><td>${escapeHtml(resource.crew || "—")}</td><td>${escapeHtml(location)}</td></tr>`;
+        })
+        .join("")
+    : '<tr><td colspan="6">No resources entered.</td></tr>';
+
+  return `${incidentHeaderHtml("ICS-201 Incident Briefing")}
+    <section><h2>Current Objectives</h2>${objectivesHtml}</section>
+    <section><h2>Resource Summary</h2><p>${countLine}</p>
+      <table><thead><tr><th>Type</th><th>Name</th><th>ID</th><th>Status</th><th>Crew</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table>
+    </section>`;
+}
+
+function buildIcs203Body() {
+  const rows = buildIcs203Rows(IMT_POSITIONS, assignmentSlots, assignmentPeople)
+    .map(row => `<tr><td>${escapeHtml(row.position)}</td><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.capid || "—")}</td></tr>`)
+    .join("");
+  return `${incidentHeaderHtml("ICS-203 Organization Assignment List")}
+    <section><table><thead><tr><th>Position</th><th>Name</th><th>CAPID</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+}
+
+function buildIcs214Body() {
+  const rows = activityLog.length
+    ? activityLog
+        .map(entry => {
+          const time = entry.at ? new Date(entry.at).toLocaleString() : "—";
+          const line = buildActivityLine({ ...entry, at: "" }).replace(/^ — /, "");
+          return `<tr><td class="ics-time">${escapeHtml(time)}</td><td>${escapeHtml(line)}</td></tr>`;
+        })
+        .join("")
+    : '<tr><td colspan="2">No activity recorded.</td></tr>';
+  return `${incidentHeaderHtml("ICS-214 Activity Log")}
+    <section><table><thead><tr><th>Date/Time</th><th>Notable Activities</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+}
+
+function openPrintWindow(title, bodyHtml) {
+  const win = window.open("", "_blank", "noopener,noreferrer,width=900,height=720");
+  if (!win) {
+    notify("Allow pop-ups for this site to print or export ICS forms.", "error");
+    return;
+  }
+  win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><title>${escapeHtml(title)}</title><style>
+    body{font-family:Inter,Arial,sans-serif;margin:24px;color:#111827}
+    h1{margin:0 0 4px;font-size:1.4rem}h2{font-size:1.1rem;margin:18px 0 8px}
+    .ics-header{border-bottom:2px solid #111827;padding-bottom:10px;margin-bottom:8px}
+    .ics-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px;margin-top:8px}
+    .ics-label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;font-weight:800}
+    .ics-value{font-weight:700}
+    .ics-generated{color:#6b7280;font-size:.85rem;margin:6px 0 0}
+    table{width:100%;border-collapse:collapse;margin-top:6px;font-size:.92rem}
+    th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;vertical-align:top}
+    th{background:#f1f5f9}
+    .ics-time{white-space:nowrap}
+    ul{margin:0;padding-left:18px}
+    @media print{body{margin:.5in}}
+  </style></head><body>${bodyHtml}</body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+/* ---------------------------------------------------------------------------
+ * GPS breadcrumb / live self-tracking
+ * ------------------------------------------------------------------------- */
+function bindTrackingControls() {
+  els.trackMeBtn?.addEventListener("click", toggleTracking);
+  els.clearTrailBtn?.addEventListener("click", clearTrail);
+}
+
+function toggleTracking() {
+  if (trackWatchId !== null) stopTracking();
+  else startTracking();
+}
+
+function startTracking() {
+  if (!navigator.geolocation) {
+    notify("Geolocation is not available in this browser.", "error");
+    return;
+  }
+  let centered = false;
+  trackWatchId = navigator.geolocation.watchPosition(
+    position => {
+      const point = {
+        lat: Number(position.coords.latitude.toFixed(6)),
+        lng: Number(position.coords.longitude.toFixed(6)),
+        at: new Date().toISOString()
+      };
+      userCoords = { lat: point.lat, lng: point.lng };
+      const last = breadcrumb[breadcrumb.length - 1];
+      // Skip near-duplicate fixes (< ~3 m) to keep the trail tidy.
+      if (!last || haversineMeters(last, point) > 3) {
+        breadcrumb.push(point);
+        if (breadcrumb.length > BREADCRUMB_LIMIT) breadcrumb.shift();
+        saveBreadcrumb();
+      }
+      renderBreadcrumb();
+      if (!centered && map) {
+        map.setView([point.lat, point.lng], Math.max(map.getZoom(), 14));
+        centered = true;
+      }
+    },
+    () => notify("Could not read your location. Check location permissions.", "error"),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+  if (els.trackMeBtn) {
+    els.trackMeBtn.classList.add("active");
+    els.trackMeBtn.textContent = "Tracking… (stop)";
+  }
+  notify("Live tracking on. Your position and trail update on the map.", "info");
+}
+
+function stopTracking() {
+  if (trackWatchId !== null) {
+    navigator.geolocation.clearWatch(trackWatchId);
+    trackWatchId = null;
+  }
+  if (els.trackMeBtn) {
+    els.trackMeBtn.classList.remove("active");
+    els.trackMeBtn.textContent = "Track Me";
+  }
+}
+
+function renderBreadcrumb() {
+  if (!map) return;
+  if (!breadcrumbLayer) breadcrumbLayer = L.layerGroup().addTo(map);
+  breadcrumbLayer.clearLayers();
+  if (!breadcrumb.length) return;
+
+  const path = breadcrumb.map(point => [point.lat, point.lng]);
+  if (path.length > 1) {
+    L.polyline(path, { color: "#2563eb", weight: 3, opacity: 0.7, dashArray: "4 6" }).addTo(breadcrumbLayer);
+  }
+  const here = path[path.length - 1];
+  L.circleMarker(here, { radius: 7, color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 0.9, weight: 2 })
+    .bindPopup(`<strong>You are here</strong><br>Trail: ${Math.round(trailDistanceMeters(breadcrumb))} m`)
+    .addTo(breadcrumbLayer);
+
+  if (els.clearTrailBtn) {
+    els.clearTrailBtn.textContent = path.length > 1 ? `Clear Trail (${Math.round(trailDistanceMeters(breadcrumb))} m)` : "Clear Trail";
+  }
+}
+
+function clearTrail() {
+  breadcrumb = [];
+  saveBreadcrumb();
+  renderBreadcrumb();
+  if (els.clearTrailBtn) els.clearTrailBtn.textContent = "Clear Trail";
+}
+
+function loadBreadcrumb() {
+  const saved = readJson(BREADCRUMB_STORAGE_KEY, []);
+  return Array.isArray(saved) ? saved : [];
+}
+
+function saveBreadcrumb() {
+  writeJson(BREADCRUMB_STORAGE_KEY, breadcrumb);
 }

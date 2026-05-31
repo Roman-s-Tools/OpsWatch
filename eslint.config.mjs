@@ -36,7 +36,14 @@ export default [
         normalizeResource: "readonly",
         resourceIconSpec: "readonly",
         extractCoordinates: "readonly",
-        parseKmlFeatures: "readonly"
+        parseKmlFeatures: "readonly",
+        minutesSince: "readonly",
+        isResourceStale: "readonly",
+        buildActivityLine: "readonly",
+        haversineMeters: "readonly",
+        trailDistanceMeters: "readonly",
+        resourceCounts: "readonly",
+        buildIcs203Rows: "readonly"
       }
     }
   },
