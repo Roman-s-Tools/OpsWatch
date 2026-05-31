@@ -1,5 +1,5 @@
 /* OpsWatch service worker — offline app shell + opportunistic runtime caching. */
-const SHELL_CACHE = "opswatch-shell-v1";
+const SHELL_CACHE = "opswatch-shell-v2";
 const RUNTIME_CACHE = "opswatch-runtime-v1";
 const TILE_CACHE = "opswatch-tiles-v1";
 
