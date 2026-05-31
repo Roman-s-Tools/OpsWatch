@@ -330,7 +330,7 @@ function applyLiveState(payload) {
   if (Array.isArray(payload.radii)) radii = payload.radii;
   if (Array.isArray(payload.assignmentPeople)) assignmentPeople = payload.assignmentPeople;
   if (payload.crewStaffingIncident && typeof payload.crewStaffingIncident === "object") {
-    localStorage.setItem(CREW_STAFFING_INCIDENT_STORAGE_KEY, JSON.stringify(payload.crewStaffingIncident));
+    writeJson(CREW_STAFFING_INCIDENT_STORAGE_KEY, payload.crewStaffingIncident);
   }
   if (payload.assignmentSlots && typeof payload.assignmentSlots === "object") assignmentSlots = payload.assignmentSlots;
   if (Array.isArray(payload.fieldNotes)) fieldNotes = payload.fieldNotes;
@@ -338,14 +338,14 @@ function applyLiveState(payload) {
   if (payload.commandBanner && typeof payload.commandBanner === "object") commandBanner = payload.commandBanner;
   if (payload.commandObjectives && typeof payload.commandObjectives === "object") commandObjectives = payload.commandObjectives;
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
-  localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
-  localStorage.setItem(CREW_STAFFING_STORAGE_KEY, JSON.stringify(assignmentPeople));
-  localStorage.setItem(ASSIGNMENT_BOARD_STORAGE_KEY, JSON.stringify(assignmentSlots));
-  localStorage.setItem(FIELD_NOTES_STORAGE_KEY, JSON.stringify(fieldNotes));
-  localStorage.setItem(COMMAND_STORAGE_KEY, JSON.stringify(commandStatuses));
-  localStorage.setItem(`${COMMAND_STORAGE_KEY}-banner`, JSON.stringify(commandBanner));
-  localStorage.setItem(`${COMMAND_STORAGE_KEY}-objectives`, JSON.stringify(commandObjectives));
+  writeJson(STORAGE_KEY, resources);
+  writeJson(RADII_STORAGE_KEY, radii);
+  writeJson(CREW_STAFFING_STORAGE_KEY, assignmentPeople);
+  writeJson(ASSIGNMENT_BOARD_STORAGE_KEY, assignmentSlots);
+  writeJson(FIELD_NOTES_STORAGE_KEY, fieldNotes);
+  writeJson(COMMAND_STORAGE_KEY, commandStatuses);
+  writeJson(`${COMMAND_STORAGE_KEY}-banner`, commandBanner);
+  writeJson(`${COMMAND_STORAGE_KEY}-objectives`, commandObjectives);
   render();
   renderAssignmentBoard();
   renderFieldNotes();
@@ -436,8 +436,8 @@ function seedDemoData() {
     preparedAt: new Date().toLocaleString()
   };
 
-  localStorage.setItem("romans-assignment-roster-v1", JSON.stringify(demoPeople));
-  localStorage.setItem("romans-assignment-roster-incident-v1", JSON.stringify(demoIncident));
+  writeJson(CREW_STAFFING_STORAGE_KEY, demoPeople);
+  writeJson(CREW_STAFFING_INCIDENT_STORAGE_KEY, demoIncident);
 
   assignmentPeople = demoPeople.map(person => ({ id: String(person.id), name: String(person.name), capid: String(person.capid) }));
   assignmentSlots = {};
@@ -469,7 +469,7 @@ function clearResourcesAndPeople() {
 
   assignmentPeople = [];
   assignmentSlots = {};
-  localStorage.setItem(CREW_STAFFING_STORAGE_KEY, JSON.stringify(assignmentPeople));
+  writeJson(CREW_STAFFING_STORAGE_KEY, assignmentPeople);
   saveAssignmentBoard();
 
   sendCrewStaffingMessage({ type: "crewstaffing:clear" });
@@ -941,7 +941,7 @@ function importJson(event) {
 
       saveResources();
       render();
-    } catch (error) {
+    } catch {
       alert("Could not import this file. Please upload a valid Resource Tracker JSON export.");
     } finally {
       event.target.value = "";
@@ -1029,32 +1029,39 @@ function makeLink(text, href) {
   return link;
 }
 
-function loadResources() {
+// Small localStorage helpers so every reader/writer shares one JSON-safe path
+// instead of repeating try/parse/catch and JSON.stringify all over the file.
+function readJson(key, fallback) {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : defaultResources;
+    const saved = localStorage.getItem(key);
+    return saved == null ? fallback : JSON.parse(saved);
   } catch {
-    return defaultResources;
+    return fallback;
   }
 }
 
+function writeJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function loadResources() {
+  const saved = readJson(STORAGE_KEY, null);
+  return Array.isArray(saved) ? saved : defaultResources;
+}
+
 function saveResources() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
+  writeJson(STORAGE_KEY, resources);
   postDashboardUpdate();
   publishLiveState();
 }
 
 function loadRadii() {
-  try {
-    const saved = localStorage.getItem(RADII_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
+  const saved = readJson(RADII_STORAGE_KEY, []);
+  return Array.isArray(saved) ? saved : [];
 }
 
 function saveRadii() {
-  localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
+  writeJson(RADII_STORAGE_KEY, radii);
   postDashboardUpdate();
   publishLiveState();
 }
@@ -1307,7 +1314,7 @@ function importAssignmentPrefill(event) {
         }
       });
 
-      localStorage.setItem(CREW_STAFFING_STORAGE_KEY, JSON.stringify(assignmentPeople));
+      writeJson(CREW_STAFFING_STORAGE_KEY, assignmentPeople);
       saveAssignmentBoard();
       renderAssignmentBoard();
     } catch {
@@ -1320,27 +1327,19 @@ function importAssignmentPrefill(event) {
 }
 
 function loadAssignmentPeople() {
-  try {
-    const payload = JSON.parse(localStorage.getItem(CREW_STAFFING_STORAGE_KEY) || "[]");
-    assignmentPeople = Array.isArray(payload)
-      ? payload.map(person => ({
-          id: String(person.id || crypto.randomUUID()),
-          name: String(person.name || "Unnamed Person"),
-          capid: String(person.capid || "Unknown")
-        }))
-      : [];
-  } catch {
-    assignmentPeople = [];
-  }
+  const payload = readJson(CREW_STAFFING_STORAGE_KEY, []);
+  assignmentPeople = Array.isArray(payload)
+    ? payload.map(person => ({
+        id: String(person.id || crypto.randomUUID()),
+        name: String(person.name || "Unnamed Person"),
+        capid: String(person.capid || "Unknown")
+      }))
+    : [];
 }
 
 function loadCrewStaffingIncident() {
-  try {
-    const payload = JSON.parse(localStorage.getItem(CREW_STAFFING_INCIDENT_STORAGE_KEY) || "{}");
-    return payload && typeof payload === "object" ? payload : {};
-  } catch {
-    return {};
-  }
+  const payload = readJson(CREW_STAFFING_INCIDENT_STORAGE_KEY, {});
+  return payload && typeof payload === "object" ? payload : {};
 }
 
 function renderAssignmentBoard() {
@@ -1400,16 +1399,12 @@ function renderAssignmentBoard() {
 }
 
 function loadAssignmentBoard() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(ASSIGNMENT_BOARD_STORAGE_KEY) || "{}");
-    return saved && typeof saved === "object" ? saved : {};
-  } catch {
-    return {};
-  }
+  const saved = readJson(ASSIGNMENT_BOARD_STORAGE_KEY, {});
+  return saved && typeof saved === "object" ? saved : {};
 }
 
 function saveAssignmentBoard() {
-  localStorage.setItem(ASSIGNMENT_BOARD_STORAGE_KEY, JSON.stringify(assignmentSlots));
+  writeJson(ASSIGNMENT_BOARD_STORAGE_KEY, assignmentSlots);
   postDashboardUpdate();
   publishLiveState();
 }
@@ -1497,18 +1492,17 @@ function buildCommandSnapshot() {
 }
 
 function loadCommandStatuses() {
-  try { return JSON.parse(localStorage.getItem(COMMAND_STORAGE_KEY) || "{}"); } catch { return {}; }
+  return readJson(COMMAND_STORAGE_KEY, {});
 }
-function saveCommandStatuses() { localStorage.setItem(COMMAND_STORAGE_KEY, JSON.stringify(commandStatuses)); publishLiveState(); }
+function saveCommandStatuses() { writeJson(COMMAND_STORAGE_KEY, commandStatuses); publishLiveState(); }
 function loadCommandBanner() {
-  try { return JSON.parse(localStorage.getItem(`${COMMAND_STORAGE_KEY}-banner`) || "{\"text\":\"\",\"enabled\":false}"); } catch { return { text: "", enabled: false }; }
+  return readJson(`${COMMAND_STORAGE_KEY}-banner`, { text: "", enabled: false });
 }
-function saveCommandBanner() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-banner`, JSON.stringify(commandBanner)); publishLiveState(); }
+function saveCommandBanner() { writeJson(`${COMMAND_STORAGE_KEY}-banner`, commandBanner); publishLiveState(); }
 function loadCommandObjectives() {
-  try { return JSON.parse(localStorage.getItem(`${COMMAND_STORAGE_KEY}-objectives`) || "{\"primary\":\"\",\"secondary\":\"\",\"tertiary\":\"\"}"); }
-  catch { return { primary: "", secondary: "", tertiary: "" }; }
+  return readJson(`${COMMAND_STORAGE_KEY}-objectives`, { primary: "", secondary: "", tertiary: "" });
 }
-function saveCommandObjectives() { localStorage.setItem(`${COMMAND_STORAGE_KEY}-objectives`, JSON.stringify(commandObjectives)); publishLiveState(); }
+function saveCommandObjectives() { writeJson(`${COMMAND_STORAGE_KEY}-objectives`, commandObjectives); publishLiveState(); }
 
 
 function bindFieldNotesControls() {
@@ -1649,38 +1643,27 @@ function printFieldNotes() {
 }
 
 function loadFieldNotes() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(FIELD_NOTES_STORAGE_KEY) || "[]");
-    return Array.isArray(saved) ? saved : [];
-  } catch {
-    return [];
-  }
+  const saved = readJson(FIELD_NOTES_STORAGE_KEY, []);
+  return Array.isArray(saved) ? saved : [];
 }
 
 function saveFieldNotes() {
-  localStorage.setItem(FIELD_NOTES_STORAGE_KEY, JSON.stringify(fieldNotes));
+  writeJson(FIELD_NOTES_STORAGE_KEY, fieldNotes);
   publishLiveState();
 }
 
 function loadFieldNoteAuthor() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(FIELD_NOTES_AUTHOR_STORAGE_KEY) || "{}");
-    if (!saved || typeof saved !== "object") return { name: "", role: "" };
-    return {
-      name: String(saved.name || ""),
-      role: String(saved.role || "")
-    };
-  } catch {
-    return { name: "", role: "" };
-  }
+  const saved = readJson(FIELD_NOTES_AUTHOR_STORAGE_KEY, {});
+  if (!saved || typeof saved !== "object") return { name: "", role: "" };
+  return {
+    name: String(saved.name || ""),
+    role: String(saved.role || "")
+  };
 }
 
 function saveFieldNoteAuthor() {
-  localStorage.setItem(
-    FIELD_NOTES_AUTHOR_STORAGE_KEY,
-    JSON.stringify({
-      name: els.fieldNoteName?.value.trim() || "",
-      role: els.fieldNoteRole?.value.trim() || ""
-    })
-  );
+  writeJson(FIELD_NOTES_AUTHOR_STORAGE_KEY, {
+    name: els.fieldNoteName?.value.trim() || "",
+    role: els.fieldNoteRole?.value.trim() || ""
+  });
 }
